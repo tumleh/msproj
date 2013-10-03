@@ -1868,10 +1868,9 @@ Event next_event()
 	//cout<<"exiting next_event\n";
 	return e;//*/
 }
-
-void init_sim(int log_num_events)
+//init_sim function.  Sets all the important parameters.
+void init_sim(int log_num_events,double iid_load)
 {
-	double iid_load = .40;
 	//Parameters:
 	sched_par.alpha = 1.0;
 	sched_par.beta = 0.1;
@@ -1990,7 +1989,11 @@ void init_sim(int log_num_events)
 	
 }
 
-
+//Overload Init_sim to make calling it easier.
+void init_sim(int log_num_events)
+{
+	init_sim(log_num_events,.4);
+}
 /*-------------------------------------------------------------------*/
 /*---------------------------- Unit Tests: --------------------------*/
 /*-------------------------------------------------------------------*/
@@ -2506,7 +2509,7 @@ void tcp_testing()
 void fake_main()
 {
 	
-cout<<"hello -1\n";	
+	cout<<"Entering fake_main\n";	
 	//initialize stat collection mechanism:
 	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows);
 	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows);
@@ -2520,20 +2523,33 @@ cout<<"hello -1\n";
 	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows);
 	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows);
 	
-cout<<"hello 0\n";	
 	//Parameters:
-	sim_par.use_tcp=true;
+	sim_par.use_tcp=false;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=10;
 	int log_num_events = 5;
 	int num_events = pow(10,log_num_events);//1000000;
-cout<<"hello 1\n";	
-	//initialize_state:
-	init_sim(log_num_events);
-	cout<<"Hello2\n";
-	
-	//reset_sim();		
-	run(num_events);	
+
+	//run trials:
+	for(int i=4;i>2;i--)
+	{
+		//initialize_state:
+		init_sim(log_num_events,.1*i);
+		reset_sim();		
+		//run simulation:
+		run(num_events);
+
+		//save to file:
+		if(i==4)
+		{
+			stat_bucket.save_to_file_specify_count_till("sim4.csv",current_time,packet_delay_avg);
+		}
+		else
+		{
+			stat_bucket.save_to_file_specify_count_till("sim3.csv",current_time,packet_delay_avg);
+		}
+	}	
+
 }
 
 /*-------------------------------------------------------------------*/
