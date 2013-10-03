@@ -2323,6 +2323,7 @@ void test()
 
 //function responsible to rezero all state so that a new simulation can begin
 //does not change flows or other parameters, those should be done manually.
+//needs to change array stats too?
 void reset_sim()
 {
 	logger.record("debug","reset simulations");
@@ -2474,8 +2475,6 @@ void run(int num_events)
 			print(&switch_Q);
 			break;
 		}
-
-
 	}
 	
 	cout<<"\n\n----------------------- Simulation Finished: -----------------------------\n\n";
@@ -2532,6 +2531,8 @@ cout<<"hello 1\n";
 	//initialize_state:
 	init_sim(log_num_events);
 	cout<<"Hello2\n";
+	
+	//reset_sim();		
 	run(num_events);	
 }
 
@@ -2542,10 +2543,11 @@ cout<<"hello 1\n";
 
 int main(void)
 {
-	int unit_testing=0;
+	int unit_testing=1;
 	if(unit_testing == 1)
 	{
-		test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
+		fake_main();
+		//test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
 		//cout<<iid_pkt_gen(.3)<<"\n";
 		//		cout<<iid_pkt_gen(.7)<<"\n";
 		//		cout<<iid_pkt_gen(.9)<<"\n";
@@ -2553,7 +2555,7 @@ int main(void)
 		return 0;
 	}
 	cout<<"Hello\n";
-	if(1==1){
+	//if(1==1){
 	time_t timer;
 	time(&timer);
 	
@@ -2638,21 +2640,18 @@ int main(void)
 			print(&switch_Q);
 			break;
 		}
-
-
-	
+	}
 	
 	cout<<"\n\n----------------------- Simulation Finished: -----------------------------\n\n";
-	}
 	if(end_simulation)
 	{
 		cout<<"Simulation aborted after "<<difftime(time(NULL),timer)<<" seconds.\n";
 	}
 	cout<<"Program simulated "<<num_events<<" events in "<<difftime(time(NULL),timer)<<" seconds. ("<<difftime(time(NULL),timer)/60<<" minutes)\n";
-	}
-	else{
-	fake_main();
-	}
+	//}
+	//else{
+	//fake_main();
+	//}
 	//print to file:
 	stat_bucket.save_to_file_specify_count_till("sim.csv",current_time,packet_delay_avg);
 	//Print stats:
