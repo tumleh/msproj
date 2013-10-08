@@ -4,6 +4,7 @@
 #include <queue>
 #include <iostream>
 #include <fstream>
+#include <sstream>//for stringstream
 //#include <boost>//need to install boost
 #include <vector>
 using namespace std;
@@ -277,6 +278,7 @@ class Data_Collector
 	vector<string> stat_name;
 	vector<vector<int> > stat;
 	vector<vector<int> > count;//not quite right at the moment...Need per time thing instead...
+	vector<bool> count_is_user_defined;//allows user to ignore count values.
 	vector<int> row_length;//formatting tool	
 	public:
 	//type variables to make it easy to use:
@@ -294,6 +296,7 @@ class Data_Collector
 		stat.resize(num_stats);
 		count.resize(num_stats);
 		row_length.resize(num_stats);
+		count_is_user_defined.resize(num_stats);
 	}
 
 	int get_num_stats()
@@ -302,7 +305,7 @@ class Data_Collector
 	}
 
 	//original initialize_stat function will overload to make it more user friendly
-	void initialize_stat(int this_stat,string name,int type,int num_indices,int stat_row_length,int init_value)
+	void initialize_stat(int this_stat,string name,int type,int num_indices,int stat_row_length,int init_value,bool use_count)
 	{
 		if(this_stat>get_num_stats()-1)
 		{
@@ -316,6 +319,7 @@ class Data_Collector
 		stat_type[this_stat]=type;
 		stat_name[this_stat]=name;
 		row_length[this_stat]=stat_row_length;
+		count_is_user_defined[this_stat]=use_count;//.resize(num_indices);
 		stat[this_stat].resize(num_indices);
 		count[this_stat].resize(num_indices);
 		for(int i=0;i<stat[this_stat].capacity();i++)
@@ -326,9 +330,9 @@ class Data_Collector
 	}
 
 	//overloaded initialize_stat method to make it easy to use.
-	void initialize_stat(int this_stat,string name,int type,int num_rows,int num_cols)
+	void initialize_stat(int this_stat,string name,int type,int num_rows,int num_cols,bool user_defines_count)
 	{
-		initialize_stat(this_stat,name,type,num_rows*num_cols,num_cols,0);//0 is probably the default value
+		initialize_stat(this_stat,name,type,num_rows*num_cols,num_cols,0,user_defines_count);//0 is probably the default value
 	}
 
 	//in order to avoid weird three layer arrays etc:
@@ -485,6 +489,8 @@ class Data_Collector
 		output.close();
 	}
 
+	
+
 	//a further hack because I missed the idea of a variety of different kinds of statistics. 
 	//Will need to fix this. Probbly doable if I change the data collection philosophy.
 	// Dump stored to statistics to the specified output file:
@@ -500,6 +506,72 @@ class Data_Collector
 			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
 			{
 				if(this_stat<first_unspecified_count)
+				{
+					temp_count=specified_count;
+				}
+				else
+				{
+					temp_count=count[this_stat][stat_index];
+				}
+				if(temp_count!=0)
+				{
+					switch(stat_type[this_stat])
+					{
+						case 0://avg
+							output<< ((double) stat[this_stat][stat_index]/temp_count);
+							break;
+						case 1://max
+							output<<stat[this_stat][stat_index];
+							break;
+						case 2://variance:
+							output<< ((double) stat[this_stat][stat_index]/temp_count);
+							break;
+						default://something is wrong
+							output<<"type error";
+					}
+				}
+				else
+				{
+					output<<0;
+				}
+				if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
+				{
+					if((stat_index+1)%row_length[this_stat]==0)
+					{
+						output<<"\n";
+					}
+					else if(stat_index<count[this_stat].capacity()-1)
+					{
+						output<<" , ";
+					}
+				}
+				else if(stat_index<count[this_stat].capacity()-1)
+				{
+					output<<" , ";
+				}
+			}
+			if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
+			{
+				output<<"\n";
+			}
+		}
+		output.close();
+	}
+
+	//Hopefully a save_to_file function that makes sense, pass in a file_name
+	//and a specified count, for all statistics that have that flag ticked.
+	void save_to_file_specify_count(string file_name,int specified_count)
+	{
+		int temp_count=0;
+		ofstream output;	
+		output.open(file_name.c_str());//need c string to open a file.
+		for(int this_stat=0;this_stat<num_stats;this_stat++)
+		{
+			//commented out for now//output<<stat_name[this_stat]<<":\n";
+			output<<stat[this_stat].capacity()/row_length[this_stat]<<","<<row_length[this_stat]<<"\n";
+			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
+			{
+				if(count_is_user_defined[this_stat])
 				{
 					temp_count=specified_count;
 				}
@@ -2219,6 +2291,28 @@ void ptr_passing_test(struct Packet* parray)
 //just a function to test whatever I just built without cluttering my main function
 void test()
 {
+	string s1 = "hello ";
+	string s2 = "world!";
+	string s3 = s1+s2;
+	cout<<s3<<"\n";
+	
+	stringstream temp;
+	temp.str("");//empty string?
+	string s4 = temp.str();//extract temp value?
+	cout<< s4<<"\n";
+	temp.str("reset string");
+	string s5 = temp.str()+" " + s3;//extract temp value?
+	cout<< s5<<"\n";
+
+	temp.str("");//reset value to zero.
+	temp<<"count ";//start filling buffer
+
+	for(int i=0;i<5;i++)
+	{
+		temp<<":"<<i;
+		cout<<temp.str()<<"\n";
+	}
+	/*	
 	queue<Packet> pq;
 	for(int i=0;i<6;i++)
 	{
@@ -2243,7 +2337,7 @@ void test()
 		cout<<p.creation_time<<"\n";
 		cout<<p.arrival_time<<"\n";
 		cout<<p.length<<"\n";
-	}
+	}//*/
 	/*
 	int array_length=3;
 	int* pointer;
@@ -2308,13 +2402,14 @@ void test()
 	}
 	d.save_to_file("logs/test.out");
 	//*/
+	/*
 		struct Packet p = parray;
 		cout<<p.flow<<"\n";
 		cout<<p.src<<"\n";
 		cout<<p.dest<<"\n";
 		cout<<p.creation_time<<"\n";
 		cout<<p.arrival_time<<"\n";
-		cout<<p.length<<"\n";
+		cout<<p.length<<"\n";//*/
 }
 /*-------------------------------------------------------------------*/
 /*---------------------------- Unit Tests^^ -------------------------*/
@@ -2417,7 +2512,7 @@ void test_reset_sim()
 
 //run a simulation does not do any resetting or printing:
 //not carefully examined yet
-void run(int num_events)
+void run_sim(int num_events)
 {
 	time_t timer;
 	time(&timer);
@@ -2511,17 +2606,17 @@ void fake_main()
 	
 	cout<<"Entering fake_main\n";	
 	//initialize stat collection mechanism:
-	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows);
-	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows);
-	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows);
-	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row);
-	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row);
-	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row);
+	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows,true);
+	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row,true);
 
 	//packet delay statistics:
-	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows);
-	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows);
-	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows);
+	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
 	
 	//Parameters:
 	sim_par.use_tcp=false;
@@ -2531,23 +2626,21 @@ void fake_main()
 	int num_events = pow(10,log_num_events);//1000000;
 
 	//run trials:
-	for(int i=4;i>2;i--)
+	stringstream file_name;
+	double max_load =.99;
+	for(int i=1;i<=10;i++)
 	{
 		//initialize_state:
-		init_sim(log_num_events,.1*i);
+		init_sim(log_num_events,.1*i*max_load);
 		reset_sim();		
+		
 		//run simulation:
-		run(num_events);
+		run_sim(num_events);
 
 		//save to file:
-		if(i==4)
-		{
-			stat_bucket.save_to_file_specify_count_till("sim4.csv",current_time,packet_delay_avg);
-		}
-		else
-		{
-			stat_bucket.save_to_file_specify_count_till("sim3.csv",current_time,packet_delay_avg);
-		}
+		file_name.str("");//reset name
+		file_name<<"sim"<<i<<".csv";//set name
+		stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
 	}	
 
 }
@@ -2559,7 +2652,7 @@ void fake_main()
 
 int main(void)
 {
-	int unit_testing=1;
+	int unit_testing=0;
 	if(unit_testing == 1)
 	{
 		fake_main();
@@ -2570,23 +2663,25 @@ int main(void)
 		
 		return 0;
 	}
-	cout<<"Hello\n";
-	//if(1==1){
+
+
+	fake_main();
+	/*
 	time_t timer;
 	time(&timer);
 	
 	//initialize stat collection mechanism:
-	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows);
-	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows);
-	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows);
-	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row);
-	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row);
-	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row);
+	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows,true);
+	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row,true);
 
 	//packet delay statistics:
-	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows);
-	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows);
-	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows);
+	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
 	
 	//Parameters:
 	sim_par.use_tcp=true;
@@ -2622,7 +2717,7 @@ int main(void)
 		}
 		e = next_event();
 		//collect statistics since last time:
-		//*//record data (should go into a function?):
+		///record data (should go into a function?):
 		//really slow at the moment
 		int time_elapsed=e.get_time()-current_time;
 		for(int flow=0;flow<max_num_flows;flow++)
@@ -2639,7 +2734,7 @@ int main(void)
 				stat_bucket.enter_data(switch_queue_var,s,d,switch_Q[s][d].size()*time_elapsed);
 				stat_bucket.enter_data(switch_queue_max,s,d,switch_Q[s][d].size()*time_elapsed);
 			}
-		}//*/
+		}///
 		
 		update_state(&e);
 		
@@ -2664,12 +2759,11 @@ int main(void)
 		cout<<"Simulation aborted after "<<difftime(time(NULL),timer)<<" seconds.\n";
 	}
 	cout<<"Program simulated "<<num_events<<" events in "<<difftime(time(NULL),timer)<<" seconds. ("<<difftime(time(NULL),timer)/60<<" minutes)\n";
-	//}
-	//else{
-	//fake_main();
-	//}
+	
 	//print to file:
 	stat_bucket.save_to_file_specify_count_till("sim.csv",current_time,packet_delay_avg);
+	//*/	
+	
 	//Print stats:
 	cout<<"final time in clock_ticks = "<<current_time<<"\n";
 	cout<<"final time in avg_pkt_lengths = "<<current_time/sched_par.avg_pkt_length<<"\n";

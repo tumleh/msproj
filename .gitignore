@@ -16,8 +16,8 @@
 *.a
 
 # Simulator Outputs:
-
-
-# Simulator Outputs:
 *.csv
 *.log
+
+# Unrelated Text Files
+*.txt
