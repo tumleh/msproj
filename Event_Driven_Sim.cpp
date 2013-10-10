@@ -2029,7 +2029,7 @@ void init_sim(int log_num_events,double iid_load)
 	//Initialize state:
 	num_flows = rand();
 	cout<<"num_flows: "<<num_flows<<"\n";
-	cout<<"((double)rand())/INT_MAX:"<<((double)rand())/INT_MAX<<"\n";
+	//cout<<"((double)rand())/INT_MAX:"<<((double)rand())/INT_MAX<<"\n";
 	num_flows = max_num_flows;//ceil(((double)rand())/INT_MAX*max_num_flows);
 	cout<<"num_flows: "<<num_flows<<"\n";
 	for(int s=0;s<row;s++)
@@ -2750,8 +2750,12 @@ void qcsma_par_search()
 	//search parameters:
 	double benchmark_load =.7;//targetting good performance for this load
 	vector<double> alpha;
+	alpha.push_back(1.0);				
 	vector<double> beta;
+	beta.push_back(1.0);				
 	vector<double> p_cap;
+	p_cap.push_back(1.0);				
+	
 	//run trials:
 	stringstream message;
 	for(int a=0;a<alpha.size();a++)
@@ -2759,13 +2763,18 @@ void qcsma_par_search()
 		for(int b=0;b<beta.size();b++)
 		{
 			for(int p=0;p<p_cap.size();p++)
-			{	
+			{
+				cout<<"\n\n";
+				cout<<"alpha = "<<alpha[a]<<" --- ";
+				cout<<"beta = "<<beta[b]<<" --- ";
+				cout<<"p_cap = "<<p_cap[p]<<"\n";
+				cout<<"\n\n";
+
 				//initialize_state:
 				init_sim(log_num_events,benchmark_load);
 				sched_par.alpha = alpha[a];
 				sched_par.beta = beta[b];
 				sched_par.p_cap = p_cap[p];
-				
 				reset_sim();
 				
 				//run simulation:
