@@ -285,6 +285,8 @@ class Data_Collector
 	static const int avg = 0;
 	static const int max = 1;
 	static const int variance = 2;
+	//output modification:
+	string preamble;//preface to the actual data.  Allows you to label things differently.
 	//intialize 
 	Data_Collector(int temp_num_stats)
 	{
@@ -297,6 +299,7 @@ class Data_Collector
 		count.resize(num_stats);
 		row_length.resize(num_stats);
 		count_is_user_defined.resize(num_stats);
+		preamble="";
 	}
 
 	int get_num_stats()
@@ -623,7 +626,80 @@ class Data_Collector
 		}
 		output.close();
 	}
+	
+	//ultimate version of this method (I hope).  Let's you use the specified count for the variables you flagged, 
+	//furthermore you it prints out the preamble you've chosen specified in the future with whatever message you like before dumping the data.  (specify the preamble with data_collector_instance.preamble = some_string
+	void dump_to_file(string file_name,int specified_count)
+	{
+		int temp_count=0;
+		ofstream output;	
+		output.open(file_name.c_str());//need c string to open a file.
+		output<<preamble;
+		for(int this_stat=0;this_stat<num_stats;this_stat++)
+		{
+			//commented out for now//output<<stat_name[this_stat]<<":\n";
+			output<<stat[this_stat].capacity()/row_length[this_stat]<<","<<row_length[this_stat]<<"\n";
+			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
+			{
+				if(count_is_user_defined[this_stat])
+				{
+					temp_count=specified_count;
+				}
+				else
+				{
+					temp_count=count[this_stat][stat_index];
+				}
+				if(temp_count!=0)
+				{
+					switch(stat_type[this_stat])
+					{
+						case 0://avg
+							output<< ((double) stat[this_stat][stat_index]/temp_count);
+							break;
+						case 1://max
+							output<<stat[this_stat][stat_index];
+							break;
+						case 2://variance:
+							output<< ((double) stat[this_stat][stat_index]/temp_count);
+							break;
+						default://something is wrong
+							output<<"type error";
+					}
+				}
+				else
+				{
+					output<<0;
+				}
+				if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
+				{
+					if((stat_index+1)%row_length[this_stat]==0)
+					{
+						output<<"\n";
+					}
+					else if(stat_index<count[this_stat].capacity()-1)
+					{
+						output<<" , ";
+					}
+				}
+				else if(stat_index<count[this_stat].capacity()-1)
+				{
+					output<<" , ";
+				}
+			}
+			if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
+			{
+				output<<"\n";
+			}
+		}
+		output.close();
+	}
 
+	//overloaded for convenience:
+	void dump_to_file(string file_name,int specified_count,string prefix)
+	{
+		preamble = prefix;
+		dump_to_file(file_name,specified_count);
+	}
 	//rezeros the Data_Collector's collected stats but leaves setup otherwise unchanged
 	void reset()
 	{
@@ -2639,12 +2715,73 @@ void fake_main()
 
 		//save to file:
 		file_name.str("");//reset name
-		file_name<<"sim"<<i<<".csv";//set name
-		stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
+		file_name<<"output/sim"<<i<<".csv";//set name
+		stat_bucket.dump_to_file(file_name.str(),current_time);//write file
+		//stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
 	}	
 
 }
 
+//search for best QCSMA parameters:
+void qcsma_par_search()
+{
+	
+	cout<<"Entering qcsma_par_search\n";	
+	//initialize stat collection mechanism:
+	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows,true);
+	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row,true);
+
+	//packet delay statistics:
+	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
+	
+	//Parameters:
+	sim_par.use_tcp=false;
+	sim_par.sched_type = 1;//ideal qcsma? or 
+	sched_par.max_slip_its=10;//doesn't matter.
+	int log_num_events = 6;
+	int num_events = pow(10,log_num_events);//1000000;
+
+	//search parameters:
+	double benchmark_load =.7;//targetting good performance for this load
+	vector<double> alpha;
+	vector<double> beta;
+	vector<double> p_cap;
+	//run trials:
+	stringstream message;
+	for(int a=0;a<alpha.size();a++)
+	{
+		for(int b=0;b<beta.size();b++)
+		{
+			for(int p=0;p<p_cap.size();p++)
+			{	
+				//initialize_state:
+				init_sim(log_num_events,benchmark_load);
+				sched_par.alpha = alpha[a];
+				sched_par.beta = beta[b];
+				sched_par.p_cap = p_cap[p];
+				
+				reset_sim();
+				
+				//run simulation:
+				run_sim(num_events);
+
+				//save to file:
+				message.str("");//reset name
+				message<<"1,3\n"<<alpha[a]<<","<<beta[b]<<","<<p_cap[p]<<"\n";
+				stat_bucket.preamble = message.str();
+				message.str("");//reset name
+				message<<"output/sim"<<(a+b*alpha.size()+p*(alpha.size()+beta.size()))<<".csv";//set name
+				stat_bucket.dump_to_file(message.str(),current_time);//write file
+			}
+		}
+	}
+}
 /*-------------------------------------------------------------------*/
 /*--------------------------- Experiments^ --------------------------*/
 /*-------------------------------------------------------------------*/
@@ -2652,10 +2789,11 @@ void fake_main()
 
 int main(void)
 {
-	int unit_testing=0;
+	int unit_testing=1;
 	if(unit_testing == 1)
 	{
-		fake_main();
+		qcsma_par_search();
+		//fake_main();
 		//test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
 		//cout<<iid_pkt_gen(.3)<<"\n";
 		//		cout<<iid_pkt_gen(.7)<<"\n";
@@ -2664,7 +2802,7 @@ int main(void)
 		return 0;
 	}
 
-
+	
 	fake_main();
 	/*
 	time_t timer;
