@@ -1070,6 +1070,11 @@ void basic_slotted_qcsma(int Tx_event[])
 	while(num_new_Tx<=0)//protected against screwing up above
 	{
 		contention_slots_used++;
+		if(contention_slots_used%1000==0)
+		{
+			logger.record("WARNING:","used a lot of contention slots current_time=",current_time);
+			logger.record("WARNING:","used a lot of contention slots contention_slots_used=",contention_slots_used);
+		}
 		for(int d=0;d<num_idle_dests;d++)
 		{
 			success[d]=-1;//no requests
@@ -2028,7 +2033,7 @@ void init_sim(int log_num_events,double iid_load)
 
 	//Initialize state:
 	num_flows = rand();
-	cout<<"num_flows: "<<num_flows<<"\n";
+	//cout<<"num_flows: "<<num_flows<<"\n";
 	//cout<<"((double)rand())/INT_MAX:"<<((double)rand())/INT_MAX<<"\n";
 	num_flows = max_num_flows;//ceil(((double)rand())/INT_MAX*max_num_flows);
 	cout<<"num_flows: "<<num_flows<<"\n";
@@ -2677,10 +2682,9 @@ void tcp_testing()
 }
 
 //tests whether my functions yield the same results as my main method.
-void fake_main()
+void iid_load_sim()
 {
-	
-	cout<<"Entering fake_main\n";	
+	cout<<"Entering iid_load_sim\n";	
 	//initialize stat collection mechanism:
 	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
 	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
@@ -2702,24 +2706,44 @@ void fake_main()
 	int num_events = pow(10,log_num_events);//1000000;
 
 	//run trials:
+	string type_name="";
 	stringstream file_name;
 	double max_load =.99;
-	for(int i=1;i<=10;i++)
-	{
-		//initialize_state:
-		init_sim(log_num_events,.1*i*max_load);
-		reset_sim();		
-		
-		//run simulation:
-		run_sim(num_events);
+	for(int type = 1;type<=3;type++)//do different types of simulations
+	{	
+		sim_par.sched_type = type;
+		switch(sim_par.sched_type)
+		{
+			case 1://ideal qcsma
+			//set parameters correctly?  maybe not since we call init_sim below...
+				type_name="ideal_qcsma";
+				break;
+			case 2://slotted qcsma
+				type_name="slotted_qcsma";
+				break;
+			case 3://iterative slip
+				type_name="slip";
+				break;
+			default://error has occurred
+				cout<<"Error incorrect type in iid_load_sim\n";
+				return;
+		}
+		for(int i=1;i<=10;i++)
+		{
+			//initialize_state:
+			init_sim(log_num_events,.1*i*max_load);
+			reset_sim();		
+			
+			//run simulation:
+			run_sim(num_events);
 
-		//save to file:
-		file_name.str("");//reset name
-		file_name<<"output/sim"<<i<<".csv";//set name
-		stat_bucket.dump_to_file(file_name.str(),current_time);//write file
-		//stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
-	}	
-
+			//save to file:
+			file_name.str("");//reset name
+			file_name<<"output/"<<type_name<<i<<".csv";//set name
+			stat_bucket.dump_to_file(file_name.str(),current_time);//write file
+			//stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
+		}
+	}
 }
 
 //search for best QCSMA parameters:
@@ -2742,7 +2766,7 @@ void qcsma_par_search()
 	
 	//Parameters:
 	sim_par.use_tcp=false;
-	sim_par.sched_type = 1;//ideal qcsma? or 
+	sim_par.sched_type = 2;//time slotted qcsma 
 	sched_par.max_slip_its=10;//doesn't matter.
 	int log_num_events = 6;
 	int num_events = pow(10,log_num_events);//1000000;
@@ -2750,11 +2774,17 @@ void qcsma_par_search()
 	//search parameters:
 	double benchmark_load =.7;//targetting good performance for this load
 	vector<double> alpha;
-	alpha.push_back(1.0);				
+	alpha.push_back(0.5);
+	alpha.push_back(1.0);
+	alpha.push_back(2.0);
 	vector<double> beta;
-	beta.push_back(1.0);				
+	beta.push_back(0.1);
+	beta.push_back(0.6);
+	beta.push_back(1.0);
 	vector<double> p_cap;
-	p_cap.push_back(1.0);				
+	//p_cap.push_back(0.1);
+	//p_cap.push_back(0.3);
+	p_cap.push_back(0.6);//perhaps too large... Want to search such that it can always generate a schedule in a reasonable time.
 	
 	//run trials:
 	stringstream message;
@@ -2802,7 +2832,6 @@ int main(void)
 	if(unit_testing == 1)
 	{
 		qcsma_par_search();
-		//fake_main();
 		//test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
 		//cout<<iid_pkt_gen(.3)<<"\n";
 		//		cout<<iid_pkt_gen(.7)<<"\n";
@@ -2812,7 +2841,7 @@ int main(void)
 	}
 
 	
-	fake_main();
+	iid_load_sim();
 	/*
 	time_t timer;
 	time(&timer);
