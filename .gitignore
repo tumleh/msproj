@@ -19,5 +19,8 @@
 *.csv
 *.log
 
+#Auxiliary Matlab Files:
+*.m~
+
 # Unrelated Text Files
 *.txt

@@ -9,7 +9,7 @@
 #include <vector>
 using namespace std;
 
-#define row 8
+#define row 32
 #define max_num_flows row*row
 #define clock_ticks_per_byte 8;
 
@@ -381,6 +381,40 @@ class Data_Collector
 		enter_data(this_stat,stat_row*row_length[this_stat]+stat_col,new_data);
 	}
 
+	
+	double single_stat(int this_stat,int specified_count)
+	{
+		double value=0;
+		int temp_count;
+		for(int i=0;i<stat[this_stat].size();i++)
+		{
+			temp_count = count[this_stat][i];
+			if(count_is_user_defined[this_stat])
+			{
+				temp_count = specified_count; 
+			}
+			switch(stat_type[this_stat])
+			{
+				case 0://average
+					value+=(stat[this_stat][i]*1.0/temp_count)/stat[this_stat].size();
+					break;
+				case 1://max
+					if(value<stat[this_stat][i])
+					{
+						value=stat[this_stat][i];
+					}
+					break;
+				case 2://variance
+					value+=(stat[this_stat][i]*1.0/temp_count)/stat[this_stat].size();
+					break;
+				default://something went wrong
+					value=-1;
+					break;
+			}
+		}
+		
+	}
+	
 	//due to an error in bookkeeping use save_to_file_with_count() method below
 	// Dump stored to statistics to the specified output file:
 	void save_to_file(string file_name)
@@ -1493,8 +1527,8 @@ int peak_switch_Q[row][row];
 //return a random packet length drawn from some distribution
 int pkt_length()
 {	
-	//if(1==1)
-		//return sched_par.avg_pkt_length;//2*slip_state.cell_length;
+	if(1==1)
+		return sched_par.avg_pkt_length;//2*slip_state.cell_length;
 	//assume 12 bytes per slot
 	if((double) rand()/INT_MAX<.5)//acks and control messages in response to a packet sent?
 	{
@@ -2707,8 +2741,9 @@ void iid_load_sim()
 
 	//run trials:
 	string type_name="";
-	stringstream file_name;
+	stringstream message;
 	double max_load =.99;
+	double load;
 	for(int type = 1;type<=3;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
@@ -2731,17 +2766,22 @@ void iid_load_sim()
 		for(int i=1;i<=10;i++)
 		{
 			//initialize_state:
-			init_sim(log_num_events,.1*i*max_load);
+			load = .1*i*max_load;
+			init_sim(log_num_events,load);
 			reset_sim();		
 			
 			//run simulation:
 			run_sim(num_events);
 
 			//save to file:
-			file_name.str("");//reset name
-			file_name<<"output/"<<type_name<<i<<".csv";//set name
-			stat_bucket.dump_to_file(file_name.str(),current_time);//write file
-			//stat_bucket.save_to_file_specify_count(file_name.str(),current_time);//write file
+			message.str("");//reset preamble
+			message<<"1,2\n"<<load<<","<<sched_par.avg_pkt_length<<"\n";//add load to label
+			stat_bucket.preamble = message.str();//set preamble
+
+			message.str("");//reset name
+			message<<"output/"<<type_name<<i<<".csv";//set name
+			stat_bucket.dump_to_file(message.str(),current_time);//write file
+			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
 		}
 	}
 }
@@ -2788,6 +2828,11 @@ void qcsma_par_search()
 	
 	//run trials:
 	stringstream message;
+	double best_delay=-1;//nothing found yet.
+	double best_alpha=0;
+	double best_beta=0;
+	double best_p_cap=0;
+	double current_delay=-1;//nothing found yet.
 	for(int a=0;a<alpha.size();a++)
 	{
 		for(int b=0;b<beta.size();b++)
@@ -2817,9 +2862,21 @@ void qcsma_par_search()
 				message.str("");//reset name
 				message<<"output/sim"<<(a+b*alpha.size()+p*(alpha.size()+beta.size()))<<".csv";//set name
 				stat_bucket.dump_to_file(message.str(),current_time);//write file
+				//check the average delay:
+				current_delay = stat_bucket.single_stat(packet_delay_avg,current_time);
+				cout<<"average delay for alpha = "<<alpha[a]<<", beta = "<<beta[b]<<", p_cap = "<<p_cap[p]<<"is "<<current_delay<<"\n";
+				if(current_delay<best_delay||best_delay<0)
+				{
+					best_delay=current_delay;
+					best_alpha=alpha[a];
+					best_beta=beta[b];
+					best_p_cap=p_cap[p];
+				}
 			}
 		}
 	}
+	
+	cout<<"best average delay was "<<best_delay<<" for alpha = "<<best_alpha<<", beta = "<<best_beta<<", p_cap = "<<best_p_cap<<"\n";
 }
 /*-------------------------------------------------------------------*/
 /*--------------------------- Experiments^ --------------------------*/
@@ -2828,7 +2885,7 @@ void qcsma_par_search()
 
 int main(void)
 {
-	int unit_testing=1;
+	int unit_testing=0;
 	if(unit_testing == 1)
 	{
 		qcsma_par_search();
@@ -2839,112 +2896,13 @@ int main(void)
 		
 		return 0;
 	}
-
 	
 	iid_load_sim();
-	/*
-	time_t timer;
-	time(&timer);
-	
-	//initialize stat collection mechanism:
-	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
-	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
-	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows,true);
-	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row,true);
-	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row,true);
-	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row,true);
-
-	//packet delay statistics:
-	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows,false);
-	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
-	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
-	
-	//Parameters:
-	sim_par.use_tcp=true;
-	sim_par.sched_type = 1;
-	sched_par.max_slip_its=10;
-	int log_num_events = 5;
-	int num_events = pow(10,log_num_events);//1000000;
-	
-	//initialize_state:
-	init_sim(log_num_events);
-	
-	//Auxilliary variables:
-	Event e;
-	
-	cout<<"----------------------- Main Loop start: ------------------------------\n";
-	//main simulation loop:
-	bool end_simulation = false;
-	for(int count=0;count < num_events;count++)
-	{
-		if(progress_bar("Main Loop Execution",count,num_events,5,timer))
-		{
-			logger.record("Main Loop Execution","Number of iterations processed = ",count);
-			logger.record("Main Loop Execution","Seconds Elapsed = ",difftime(time(NULL),timer));
-			logger.record("Main Loop Execution","Current Sim Time = ",current_time);
-			for(int f=0;f<max_num_flows;f++)
-			{
-
-				logger.record("DEBUG","flow:",f);
-				logger.record("DEBUG","tcp_state.window:",tcp_state.window[f]);
-				logger.record("DEBUG","tcp_state.waiting on ack:",tcp_state.last_sent[f]-tcp_state.first_sent[f]);
-				logger.record("DEBUG","tcp_state.sent:",tcp_state.last_sent[f]);
-			}
-		}
-		e = next_event();
-		//collect statistics since last time:
-		///record data (should go into a function?):
-		//really slow at the moment
-		int time_elapsed=e.get_time()-current_time;
-		for(int flow=0;flow<max_num_flows;flow++)
-		{
-			stat_bucket.enter_data(flow_queue_avg,flow,flow_Q[flow].size()*time_elapsed);
-			stat_bucket.enter_data(flow_queue_var,flow,flow_Q[flow].size()*time_elapsed);
-			stat_bucket.enter_data(flow_queue_max,flow,flow_Q[flow].size()*time_elapsed);
-		}
-		for(int s=0;s<row;s++)
-		{
-			for(int d=0;d<row;d++)
-			{
-				stat_bucket.enter_data(switch_queue_avg,s,d,switch_Q[s][d].size()*time_elapsed);
-				stat_bucket.enter_data(switch_queue_var,s,d,switch_Q[s][d].size()*time_elapsed);
-				stat_bucket.enter_data(switch_queue_max,s,d,switch_Q[s][d].size()*time_elapsed);
-			}
-		}///
-		
-		update_state(&e);
-		
-		//instability check:
-		end_simulation = end_simulation||switch_saturation_check(&switch_Q,300);
-		end_simulation = end_simulation||flow_saturation_check(&flow_Q,300);
-		
-		//sanity check:  see if crossbar has an illegal schedule
-		end_simulation = end_simulation||illegal_Tx_schedule_check();
-		if(end_simulation)
-		{
-			cout<<"simulation aborted at count "<<count<<" and time "<<current_time<<"\n";
-			cout<<"queues:\n";
-			print(&switch_Q);
-			break;
-		}
-	}
-	
-	cout<<"\n\n----------------------- Simulation Finished: -----------------------------\n\n";
-	if(end_simulation)
-	{
-		cout<<"Simulation aborted after "<<difftime(time(NULL),timer)<<" seconds.\n";
-	}
-	cout<<"Program simulated "<<num_events<<" events in "<<difftime(time(NULL),timer)<<" seconds. ("<<difftime(time(NULL),timer)/60<<" minutes)\n";
-	
-	//print to file:
-	stat_bucket.save_to_file_specify_count_till("sim.csv",current_time,packet_delay_avg);
-	//*/	
 	
 	//Print stats:
 	cout<<"final time in clock_ticks = "<<current_time<<"\n";
 	cout<<"final time in avg_pkt_lengths = "<<current_time/sched_par.avg_pkt_length<<"\n";
 	cout<<"\n";
-	
 	
 	//cout<<"pkts_generated:\n";
 	int tot_pkts_generated=0;
@@ -3019,7 +2977,8 @@ int main(void)
 	cout<<"tot_delay in avg_pkt_lengths = "<<(double)tot_delay/tot_pkts_delivered/sched_par.avg_pkt_length<<"\n";
 	cout<<"\n";
 	
-	
+	//prehistoric: record results:
+	/*
 	//record results:  (Not appropriate yet!
 	ofstream output;
 	output.open("crossbar_dist_load1.csv");
@@ -3122,5 +3081,5 @@ int main(void)
 	
 	//close
 	output.close();
-	
+	//*/	
 }
