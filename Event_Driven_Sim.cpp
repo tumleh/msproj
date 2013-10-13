@@ -2744,7 +2744,7 @@ void iid_load_sim()
 	stringstream message;
 	double max_load =.99;
 	double load;
-	for(int type = 1;type<=3;type++)//do different types of simulations
+	for(int type = 3;type<=3;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
 		switch(sim_par.sched_type)
@@ -2768,6 +2768,8 @@ void iid_load_sim()
 			//initialize_state:
 			load = .1*i*max_load;
 			init_sim(log_num_events,load);
+			slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
+			slip_state.header_length = 0;
 			reset_sim();		
 			
 			//run simulation:
