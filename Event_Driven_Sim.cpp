@@ -9,7 +9,7 @@
 #include <vector>
 using namespace std;
 
-#define row 32
+#define row 8
 #define max_num_flows row*row
 #define clock_ticks_per_byte 8;
 
@@ -112,7 +112,8 @@ public:
 	bool has_acks;//allows us to skip checking ack array constantly.  Perhaps useful for all the values.
 	int ack[max_num_flows];//only the highest valued ack matters per flow.
 	bool ecn_bit[max_num_flows];
-
+	bool gen_state_changed;//allows us to ignore gen_state initialization
+	int gen_state[max_num_flows];//markov state for generation
 	//constructor: creates a blank event:
 	Event()
 	{
@@ -120,6 +121,7 @@ public:
 		Tx_start[0]=-1;
 		Tx_start[1]=0;
 		has_acks=false;
+		gen_state_changed=false;	
 		for(int f=0;f<max_num_flows;f++)
 		{
 			pkt_gen[f]=0;
@@ -175,6 +177,14 @@ public:
 					ecn_bit[f]=e->ecn_bit[f];
 				}
 			}
+			gen_state_changed = e->gen_state_changed;
+			if(e->gen_state_changed)//simply copy over all acks values
+			{
+				for(int f=0;f<max_num_flows;f++)
+				{
+					this->gen_state[f]=e->gen_state[f];
+				}
+			}
 		}
 		else if(e->get_time()>time)//other event hasn't occurred yet.
 		{
@@ -227,6 +237,31 @@ public:
 					{
 						ack[f]=e->ack[f];
 						ecn_bit[f]=e->ecn_bit[f];
+					}
+				}
+			}//if not we don't need to worry about it.
+			if(e->gen_state_changed)
+			{
+				if(gen_state_changed)//merge values
+				{
+					//or the values as in keep all transitions for two state chains
+					for(int f=0;f<max_num_flows;f++)
+					{
+						if(this->gen_state[f]==1||e->gen_state[f]==1)
+						{
+							this->gen_state[f]=1;
+						}
+						else
+						{
+							this->gen_state[f]=0;
+						}
+					}
+				}
+				else//simply copy values
+				{
+					for(int f=0;f<max_num_flows;f++)
+					{
+						this->gen_state[f]=e->gen_state[f];
 					}
 				}
 			}//if not we don't need to worry about it.
@@ -785,6 +820,9 @@ queue<struct Packet> flow_Q[max_num_flows];
 int flow_src[max_num_flows];
 int flow_dest[max_num_flows];
 double pkt_gen_rate[max_num_flows];
+double on_2_off[max_num_flows];//prob of on to off transition
+double off_2_on[max_num_flows];//probability of off to on transition
+int gen_state[max_num_flows];//state variable
 double tot_pkt_gen_rate = 0;
 int NIC_state[max_num_flows];
 
@@ -1698,11 +1736,23 @@ void update_state(Event *event)
 			//generate_ack(event->Tx_start[2+2*i],event->Tx_start[2+2*i+1]);//generate ack
 		}
 	}
+	
+	if(event->gen_state_changed)
+	{
+		logger.record("DEBUG","gen_state_changed! current_time = ",current_time);
+		for(int f=0;f<num_flows;f++)
+		{
+			gen_state[f]=event->gen_state[f];
+		}
+	}
 	if(event->has_acks)
 	{
 		logger.record("DEBUG","has acks is true! current_time = ",current_time);
 		tcp_update(event);
 	}
+	
+	
+	
 	current_time = event->get_time();
 	//push stuff onto the heap
 }
@@ -1769,7 +1819,7 @@ void print(Event *e)
 
 
 //intializae event to avoid weird occurences:
-void init_event(Event *e)
+void init_event(Event *e)//should be superfluous with Event constructor...
 {
 	//didn't occur:
 	e->time=-1;  
@@ -1939,7 +1989,146 @@ Event next_NIC_transfer()
 	return e;
 }
 
+//returns an integer array containing the times the first of num_var geometric random variables expire
+//with probability p.  If a random variable does not expire at the same time as the first one, it gets
+//an entry of -1.
+//p<0 interpreted as p=0, p>1 interpreted as p=1
+int geo_exp(double* expiration_p,int* expired_var,int num_var)
+{	
+	if(num_var<0)
+	{
+		logger.record("ERROR","Invalid input into geo_exp.  num_var = ",num_var);
+		num_var=0;//should create an error.  invalid input
+	}
+	//int expired_var[num_var];//could be zero length!//'return value'
+	
+	//calculate geometric probability that some variable expires:
+	double p=1.0;
+	for(int f=0;f<num_var;f++)
+	{
+		p = (1.0-expiration_p[f])*p;
+	}
+	p = 1.0-p;// p = 1 - prod(1-p_i)
+	//cout<<"p = "<<p<<"\n";
+	if(p<=0||p>1)
+	{
+		logger.record("ERROR","illegal probability in geo_exp with p = ",p);
+		return -1;//expired_var;//some weird error occured.
+	}
+	
+	//generate a uniform rand variable to be transformed to a geometric:
+	double dec_var = ((double) rand())/INT_MAX;
+	int time = 1;
+	if(p!=1)
+	{
+		time = ceil(log(1.0-dec_var)/log(1.0-p));//time slot in which there is the first packet generated
+	}
+	//given at least one variable expired (E), did variable f generate one?
+	bool var_expired=false;
+	
+	double p_no_exp=1;//pkt_gen_rate[0]/p;//p(x_1 = 1|E)
+	for(int temp_f=0;temp_f<num_var;temp_f++)
+	{
+		dec_var = ((double) rand())/INT_MAX;//outcome
+		int f = temp_f;//num_vars-1-temp_f;//
+		if(var_expired)//the event in question already occured, so everything is independent :>]
+		{
+			if(dec_var<expiration_p[f])
+			{
+				expired_var[f]=1;//
+			}
+			else
+			{
+				expired_var[f]=0;
+			}
+		}
+		else//no packets were generated yet :>/
+		{
+			if(dec_var<expiration_p[f]/(1-(1-p)/p_no_exp))//p_given_info)
+			{
+				expired_var[f]=1;//expired at time time
+				var_expired=true;
+			}
+			else
+			{
+				expired_var[f]=0;//did not expire
+				p_no_exp=p_no_exp*(1-expiration_p[f]);
+			}
+		}
+	}
+	return time;
+}
 
+//generates packets according to an on off markov process where packets are generated whenever the process is on.
+// uses on_2_off prob, off_2_on prob and pkt_gen_on state
+Event next_markov_pkt_gen()
+{
+	//double on_2_off[max_num_flows];//prob of on to off transition
+	//double off_2_on[max_num_flows];//probability of off to on transition
+	//bool gen_state[max_num_flows];//state variable
+	Event e;
+	//think this should be initialized by constructor?//init_event(&e);
+	//transitions?
+	double tran_p[max_num_flows];
+	int did_transition[max_num_flows];
+	double tran_time;
+	for(int f=0;f<num_flows;f++)
+	{
+		tran_p[f]=off_2_on[f];
+		if(gen_state[f]==1)//on
+		{
+			tran_p[f]=on_2_off[f];
+		}
+	}
+	tran_time=geo_exp(tran_p,did_transition,num_flows);
+	
+	//pkt_gen?
+	double gen_p[max_num_flows];
+	int pkt_generated[max_num_flows];
+	double gen_time;
+	for(int f=0;f<num_flows;f++)
+	{
+		gen_p[f]=0;
+		if(gen_state[f]==1)//on
+		{
+			gen_p[f]=pkt_gen_rate[f];
+		}
+	}
+	gen_time=geo_exp(gen_p,pkt_generated,num_flows);
+
+	//which occured first?
+	int time=-1;
+	if(tran_time>=0);//need to check for negative times 
+	{
+		time = tran_time;
+	}
+	if(time==-1||(time>gen_time&&gen_time>=0))
+	{
+		time=gen_time;
+	}
+	e.set_time(current_time+time);	
+	if(time==tran_time)
+	{
+		for(int f=0;f<num_flows;f++)
+		{
+			e.gen_state[f]=gen_state[f];//no transition?
+			if(did_transition[f]==1)
+			{
+				e.gen_state[f]=1-gen_state[f];//transition
+			}
+		}
+	}
+	if(time==gen_time)
+	{
+		for(int f=0;f<num_flows;f++)
+		{
+			e.pkt_gen[f]=pkt_generated[f];
+		}
+	}
+	//return event
+	
+	return e;
+}
 //needs to be written:
 Event next_pkt_gen()
 {
@@ -2029,7 +2218,7 @@ Event next_event()
 	e = next_cbar_done();
 	
 	
-	f = next_pkt_gen();
+	f=next_markov_pkt_gen();//f = next_pkt_gen();
 	e.merge(&f);
 	
 	f=next_Tx_start();
@@ -2084,7 +2273,9 @@ void init_sim(int log_num_events,double iid_load)
 		flow_dest[f]=fmod(f,row);
 		flow_src[f]=fmod(f/row,row);
 		pkt_gen_rate[f]=iid_load/sched_par.avg_pkt_length/row;//generate packets every five hundred clockticks
-		//cout<<"pkt_gen_rate["<<f<<"] = "<<pkt_gen_rate[f]<<"\n";
+		on_2_off[f]=.5;//eventually will be something
+		off_2_on[f]=.5;//eventually will be something
+		gen_state[f]=0;//eventually should startin steady state...
 	}
 	//Initialize statistics:
 	for(int s = 0;s<row;s++)
@@ -2735,7 +2926,7 @@ void iid_load_sim()
 	//Parameters:
 	sim_par.use_tcp=false;
 	sim_par.sched_type = 1;
-	sched_par.max_slip_its=10;
+	sched_par.max_slip_its=3;
 	int log_num_events = 5;
 	int num_events = pow(10,log_num_events);//1000000;
 
