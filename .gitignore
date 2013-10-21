@@ -21,6 +21,7 @@
 
 #Auxiliary Matlab Files:
 *.m~
+*.fig
 
 # Unrelated Text Files
 *.txt

@@ -10,8 +10,8 @@
 using namespace std;
 
 #define row 8
-#define max_num_flows row*row
-#define clock_ticks_per_byte 8;
+#define max_num_flows (row*row)
+#define clock_ticks_per_byte 8
 
 /*-------------------------------------------------------------------*/
 /*------------------------ Sim Parameter: --------------------------*/
@@ -1565,7 +1565,7 @@ int peak_switch_Q[row][row];
 //return a random packet length drawn from some distribution
 int pkt_length()
 {	
-	if(1==1)
+	if(1==0)
 		return sched_par.avg_pkt_length;//2*slip_state.cell_length;
 	//assume 12 bytes per slot
 	if((double) rand()/INT_MAX<.5)//acks and control messages in response to a packet sent?
@@ -1781,6 +1781,69 @@ void print(int array[], int array_length)
 		cout<<array[i]<<" ";
 	}
 	cout<<"\n";
+}
+
+//helper function to dump the flow configuration to the specified file
+//the format is: flow_num, row \n flow_sources \n flow_dest \n off_2_on \n on_2_off \n pkt_gen_rate \n
+void dump_flows_to_file(string file_name)
+{
+	ofstream output;
+	output.open(file_name.c_str());
+	
+	output<<num_flows<<","<<row<<"\n";
+	
+	for(int f=0;f<num_flows;f++)
+	{
+		output<<flow_src[f];
+		if(f!=num_flows-1)
+		{
+			output<<",";
+		}
+	}
+	output<<"\n";
+
+	for(int f=0;f<num_flows;f++)
+	{
+		output<<flow_dest[f];
+		if(f!=num_flows-1)
+		{
+			output<<",";
+		}
+	}
+	output<<"\n";
+
+
+	for(int f=0;f<num_flows;f++)
+	{
+		output<<off_2_on[f];
+		if(f!=num_flows-1)
+		{
+			output<<",";
+		}
+	}
+	output<<"\n";
+
+
+	for(int f=0;f<num_flows;f++)
+	{
+		output<<on_2_off[f];
+		if(f!=num_flows-1)
+		{
+			output<<",";
+		}
+	}
+	output<<"\n";
+
+
+	for(int f=0;f<num_flows;f++)
+	{
+		output<<pkt_gen_rate[f];
+		if(f!=num_flows-1)
+		{
+			output<<",";
+		}
+	}
+	output<<"\n";
 }
 
 void print(queue<Packet> (*Q)[row][row])
@@ -2109,6 +2172,7 @@ Event next_markov_pkt_gen()
 	e.set_time(current_time+time);	
 	if(time==tran_time)
 	{
+		e.gen_state_changed=true;
 		for(int f=0;f<num_flows;f++)
 		{
 			e.gen_state[f]=gen_state[f];//no transition?
@@ -2218,7 +2282,7 @@ Event next_event()
 	e = next_cbar_done();
 	
 	
-	f=next_markov_pkt_gen();//f = next_pkt_gen();
+	f = next_pkt_gen();//f=next_markov_pkt_gen();//
 	e.merge(&f);
 	
 	f=next_Tx_start();
@@ -2375,6 +2439,65 @@ void init_sim(int log_num_events)
 /*-------------------------------------------------------------------*/
 /*---------------------------- Unit Tests: --------------------------*/
 /*-------------------------------------------------------------------*/
+
+//markov test:
+//tests to see if markov source works correctly
+void markov_source_test()
+{
+	int log_num_events = 5;
+	int num_events = pow(10,log_num_events);//1000000;
+
+	int pkt_count[max_num_flows];
+	int on_count[max_num_flows];
+	double on_load=1.0;
+	double on_2_off_rate=.7;
+	double off_2_on_rate=.3;
+	init_sim(num_events,on_load);
+	//zero everything out:
+	for(int f=0;f<max_num_flows;f++)
+	{
+		on_count[f]=0;
+		pkt_count[f] = 0;
+		pkt_gen_rate[f]=0;
+		on_2_off[f]=0;
+		off_2_on[f]=0;	
+	}
+	for(int f=0;f<num_flows;f++)
+	{
+		pkt_gen_rate[f]=on_load/sched_par.avg_pkt_length/row;//generate packets every five hundred clockticks
+		on_2_off[f]=on_2_off_rate;
+		off_2_on[f]=off_2_on_rate;
+	}
+	double avg_on_time = off_2_on_rate/(off_2_on_rate+on_2_off_rate);
+	
+
+	Event e;
+	for(int i=0;i<num_events;i++)
+	{
+		e = next_markov_pkt_gen();
+		for(int f=0;f<num_flows;f++)
+		{
+			if(e.pkt_gen[f]!=0)
+			{
+				pkt_count[f]+=e.pkt_gen[f];
+				e.pkt_gen[f]=0;
+			}
+			if(e.gen_state_changed)
+			{
+				on_count[f]+=e.gen_state[f];
+			}
+		}
+		update_state(&e);
+	}
+	double sim_time_in_pkts=current_time*1.0/sched_par.avg_pkt_length; 
+	for(int f=0;f<num_flows;f++)
+	{
+		cout<<"fraction of load generated = "<<pkt_count[f]/sim_time_in_pkts<<" on_count[f]/total_time="<<on_count[f]*1.0/current_time<<"\n";
+	}
+	cout<<"Expected time to be in on state: "<<avg_on_time<<"\n"; 
+	cout<<"total sim time in pkt_lengths: "<<current_time*1.0/sched_par.avg_pkt_length<<"\n"; 
+}
+
 
 //tests if packet generation is iid uniform with a given load<1
 //returns 1 if true;
@@ -2906,6 +3029,129 @@ void tcp_testing()
 {
 }
 
+//generate high and low priority flows:
+//in particular generate delay_sensitive percent delay sensitive flows
+//and high_throughput high throughput flows
+void dc_flow_pattern(double delay_sensitive,double high_throughput)
+{
+	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
+	//high throughput parameters (taken from my previous simulators):
+	double ht_on_2_off = .3;
+	double ht_off_2_on = .7;
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//generates packets at rate 1.0?
+
+	//delay sensitive parameters:
+	double ds_on_2_off = .9219;
+	double ds_off_2_on = .0781;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;//generates packets at rate 1?
+	
+	//decision variable:
+	double dec_var=0.0;
+	num_flows=0;
+	for(int f=0;f<max_num_flows;f++)
+	{
+		dec_var=((double)rand()/RAND_MAX);//draw value of flow at random
+		if(dec_var<delay_sensitive)//delay sensitive flow
+		{
+			//assign things to num_flows so we only need to check the first num_flows
+			flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
+			flow_src[num_flows]=fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[num_flows]=ds_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[num_flows]=ds_on_2_off;//eventually will be something
+			off_2_on[num_flows]=ds_off_2_on;//eventually will be something
+			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			
+			num_flows++;//next one should not overlap
+		}
+		else if(dec_var<delay_sensitive+high_throughput)//high throughput flow
+		{
+			
+			//assign things to num_flows so we only need to check the first num_flows
+			flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
+			flow_src[num_flows]=fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[num_flows]=ht_on_2_off;//eventually will be something
+			off_2_on[num_flows]=ht_off_2_on;//eventually will be something
+			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			
+			num_flows++;
+		}
+		else//no flow.
+		{
+			//f generates zero packets.
+		}
+	}
+}
+
+//assert function much like in JUnit 
+bool assert_true(bool assertion, string error)
+{
+	if(assertion!=true)
+	{
+		cout<<error<<"\n";
+		return false;
+	}
+	return true;
+}
+
+//test for dc_flow_pattern:
+bool dc_flow_pattern_test()
+{
+	dc_flow_pattern(0,0);
+	assert_true(num_flows==0,"num_flows!=0");
+
+	double allowable_error=.1;//percentage you can bew off form the desired error
+	double error=0.0;
+	
+	double ds_prob[18] = {.1,.2,.3,.4,.5,.6,.7,.8,.9,.1,.2,.3,.4,.5,.6,.1,.2,.3};
+	double ht_prob[18] = {.9,.8,.7,.6,.5,.4,.3,.2,.1,.1,.2,.3,.3,.3,.3,.2,.2,.2};
+
+	int num_ht=0;
+	int num_ds=0;
+	for(int i=0;i<18;i++)
+	{
+		cout<<"conducting dc_flow_pattern_test "<<i<<" :\n";
+		dc_flow_pattern(ds_prob[i],ht_prob[i]);
+		num_ds=0;
+		num_ht=0;
+		for(int f=0;f<num_flows;f++)
+		{
+			if(on_2_off[f]==.3&&off_2_on[f]==.7)
+			{
+				num_ht++;
+			}
+			if(on_2_off[f]==.9219&&off_2_on[f]==.0781)
+			{
+				num_ds++;
+			}
+		}
+		//cout<<"ht_prob["<<i<<"] = "<<ht_prob[i]<<" percentage ht = "<<(num_ht*1.0/max_num_flows)<<"\n";
+		//cout<<"ds_prob["<<i<<"] = "<<ds_prob[i]<<" percentage ht = "<<(num_ds*1.0/max_num_flows)<<"\n";
+		//cout<<"\n";
+		//*
+		assert_true(num_flows==(num_ds+num_ht),"error in num_flow count");
+		error = (num_ht*1.0/max_num_flows)-ht_prob[i];
+		if(error<0)
+		{
+			error=error*-1;
+		}
+		if(!assert_true((error-allowable_error)<=0,"ht error too great!"))
+		{
+			cout<<"ht error for trial "<<i<<" is "<<error<<"\n";
+		}
+		error = num_ds*1.0/max_num_flows-ds_prob[i];
+		if(error<0)
+		{
+			error=error*-1;
+		}
+		if(!assert_true(error-allowable_error<=0,"ds error too great!"))
+		{
+			cout<<"ds error for trial "<<i<<" is "<<error<<"\n";
+		}//*/
+		dump_flows_to_file("output/flow.csv");
+	}
+}
+
 //tests whether my functions yield the same results as my main method.
 void iid_load_sim()
 {
@@ -2926,16 +3172,17 @@ void iid_load_sim()
 	//Parameters:
 	sim_par.use_tcp=false;
 	sim_par.sched_type = 1;
-	sched_par.max_slip_its=3;
-	int log_num_events = 5;
-	int num_events = pow(10,log_num_events);//1000000;
+	sched_par.max_slip_its=6;
+	int log_num_events = 6;
+	int num_events =5*pow(10,log_num_events);//1000000;
 
 	//run trials:
 	string type_name="";
 	stringstream message;
 	double max_load =.99;
+	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
-	for(int type = 3;type<=3;type++)//do different types of simulations
+	for(int type = 1;type<=3;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
 		switch(sim_par.sched_type)
@@ -2957,10 +3204,15 @@ void iid_load_sim()
 		for(int i=1;i<=10;i++)
 		{
 			//initialize_state:
-			load = .1*i*max_load;
+			load = load_array[i-1];//.1*i*max_load;
 			init_sim(log_num_events,load);
-			slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
+			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
+			sched_par.beta=.1;
+			sched_par.alpha=.5;
+			sched_par.p_cap=.2;
+			sched_par.max_slip_its=6;
+
 			reset_sim();		
 			
 			//run simulation:
@@ -3078,10 +3330,12 @@ void qcsma_par_search()
 
 int main(void)
 {
-	int unit_testing=0;
+	int unit_testing=1;
 	if(unit_testing == 1)
 	{
-		qcsma_par_search();
+		dc_flow_pattern_test();
+		//markov_source_test();
+		//qcsma_par_search();
 		//test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
 		//cout<<iid_pkt_gen(.3)<<"\n";
 		//		cout<<iid_pkt_gen(.7)<<"\n";
