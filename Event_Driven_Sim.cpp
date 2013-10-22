@@ -68,6 +68,7 @@ struct Simulation_Parameters
 {
 	int sched_type;// = 1;//ideal sim = 1//time slotted sim = 2//islip = 3
 	bool use_tcp;//=false;//self explanatory
+	bool use_markov_source;//use markov chains for generating traffic?
 };
 /*-------------------------------------------------------------------*/
 /*--------------------- variable collections^ -----------------------*/
@@ -2281,10 +2282,17 @@ Event next_event()
 	//*
 	e = next_cbar_done();
 	
-	
-	f = next_pkt_gen();//f=next_markov_pkt_gen();//
-	e.merge(&f);
-	
+	if(sim_par.use_markov_source)
+	{
+		f=next_markov_pkt_gen();
+		e.merge(&f);
+	}
+	else//only consider iid pkt generation:
+	{
+		f = next_pkt_gen();
+		e.merge(&f);
+	}
+
 	f=next_Tx_start();
 	e.merge(&f);
 	
@@ -3148,9 +3156,103 @@ bool dc_flow_pattern_test()
 		{
 			cout<<"ds error for trial "<<i<<" is "<<error<<"\n";
 		}//*/
-		dump_flows_to_file("output/flow.csv");
+		
+		stringstream message;
+		message.str("");//reset name
+		message<<"output/"<<"flow"<<i<<".csv";//set name
+			
+		
+		dump_flows_to_file(message.str());
 	}
 }
+
+
+//tests whether my functions yield the same results as my main method.
+void tcp_load_sim()
+{
+	cout<<"Entering iid_load_sim\n";	
+	//initialize stat collection mechanism:
+	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
+	stat_bucket.initialize_stat(flow_queue_max,"peak flow queues",stat_bucket.max,1,max_num_flows,true);
+	stat_bucket.initialize_stat(switch_queue_avg,"avg switch queues",stat_bucket.avg,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_var,"switch queue variance",stat_bucket.variance,row,row,true);
+	stat_bucket.initialize_stat(switch_queue_max,"peak switch queues",stat_bucket.max,row,row,true);
+
+	//packet delay statistics:
+	stat_bucket.initialize_stat(packet_delay_avg,"avg packet delays",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
+	
+	//Parameters:
+	sim_par.use_tcp=true;
+	sim_par.use_markov_source=true;
+	sim_par.sched_type = 1;
+	sched_par.max_slip_its=6;
+	int log_num_events = 5;
+	int num_events =pow(10,log_num_events);//1000000;
+
+	//run trials:
+	string type_name="";
+	stringstream message;
+	double max_load =.99;
+	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
+	double load;
+	for(int type = 1;type<=3;type++)//do different types of simulations
+	{	
+		sim_par.sched_type = type;
+		switch(sim_par.sched_type)
+		{
+			case 1://ideal qcsma
+			//set parameters correctly?  maybe not since we call init_sim below...
+				type_name="ideal_qcsma";
+				break;
+			case 2://slotted qcsma
+				type_name="slotted_qcsma";
+				break;
+			case 3://iterative slip
+				type_name="slip";
+				break;
+			default://error has occurred
+				cout<<"Error incorrect type in iid_load_sim\n";
+				return;
+		}
+		for(int i=1;i<=1;i++)
+		{
+			//initialize_state:
+			load = load_array[i-1];//.1*i*max_load;
+			init_sim(log_num_events,load);
+			
+			dc_flow_pattern(.5,.5);
+			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
+			slip_state.header_length = 0;
+			sched_par.beta=.1;
+			sched_par.alpha=.5;
+			sched_par.p_cap=.2;
+			sched_par.max_slip_its=6;
+
+			reset_sim();		
+			
+			//run simulation:
+			run_sim(num_events);
+
+			//save to file:
+			message.str("");//reset preamble
+			message<<"1,2\n"<<load<<","<<sched_par.avg_pkt_length<<"\n";//add load to label
+			stat_bucket.preamble = message.str();//set preamble
+
+			message.str("");//reset name
+			message<<"output/tcp_"<<type_name<<i<<".csv";//set name
+			stat_bucket.dump_to_file(message.str(),current_time);//write file
+			
+			message.str("");
+			message<<"output/tcp_"<<type_name<<"_flow"<<i<<".csv";
+			dump_flows_to_file(message.str());
+			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
+		}
+	}
+}
+
 
 //tests whether my functions yield the same results as my main method.
 void iid_load_sim()
@@ -3173,8 +3275,8 @@ void iid_load_sim()
 	sim_par.use_tcp=false;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
-	int log_num_events = 6;
-	int num_events =5*pow(10,log_num_events);//1000000;
+	int log_num_events = 5;
+	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
 	string type_name="";
@@ -3226,6 +3328,10 @@ void iid_load_sim()
 			message.str("");//reset name
 			message<<"output/"<<type_name<<i<<".csv";//set name
 			stat_bucket.dump_to_file(message.str(),current_time);//write file
+			
+			message.str("");
+			message<<"output/"<<type_name<<"_flow"<<i<<".csv";
+			dump_flows_to_file(message.str());
 			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
 		}
 	}
@@ -3251,6 +3357,7 @@ void qcsma_par_search()
 	
 	//Parameters:
 	sim_par.use_tcp=false;
+	sim_par.use_markov_source=false;
 	sim_par.sched_type = 2;//time slotted qcsma 
 	sched_par.max_slip_its=10;//doesn't matter.
 	int log_num_events = 6;
@@ -3330,7 +3437,7 @@ void qcsma_par_search()
 
 int main(void)
 {
-	int unit_testing=1;
+	int unit_testing=0;
 	if(unit_testing == 1)
 	{
 		dc_flow_pattern_test();
@@ -3344,7 +3451,7 @@ int main(void)
 		return 0;
 	}
 	
-	iid_load_sim();
+	tcp_load_sim();//iid_load_sim();
 	
 	//Print stats:
 	cout<<"final time in clock_ticks = "<<current_time<<"\n";
