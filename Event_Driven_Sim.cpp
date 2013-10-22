@@ -3189,7 +3189,7 @@ void tcp_load_sim()
 	sim_par.use_markov_source=true;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
-	int log_num_events = 5;
+	int log_num_events = 6;
 	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
@@ -3530,110 +3530,4 @@ int main(void)
 	cout<<"tot_delay in clock ticks = "<<(double)tot_delay/tot_pkts_delivered<<"\n";
 	cout<<"tot_delay in avg_pkt_lengths = "<<(double)tot_delay/tot_pkts_delivered/sched_par.avg_pkt_length<<"\n";
 	cout<<"\n";
-	
-	//prehistoric: record results:
-	/*
-	//record results:  (Not appropriate yet!
-	ofstream output;
-	output.open("crossbar_dist_load1.csv");
-	//peak_switch_queues:
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<peak_switch_Q[s][d]<<", ";
-		}
-		output<<"\n";
-	}
-	//avg_switch_queues
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<peak_switch_Q[s][d]<<", ";//don't record it yet
-		}
-		output<<"\n";
-	}
-	//peak_flow_queues
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<peak_switch_Q[s][d]<<", ";//don't record it yet either
-		}
-		output<<"\n";
-	}
-	
-	//avg_flow_queues
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<peak_switch_Q[s][d]<<", ";//don't record it yet either
-		}
-		output<<"\n";
-	}
-	
-	//flowtypes
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<ceil(2*((double)rand()/INT_MAX))<<", ";//don't record it yet either
-		}
-		output<<"\n";
-	}
-	
-	//pkt generation rates
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<pkts_generated[s*row+d]<<", ";//Need to clean this up
-		}
-		output<<"\n";
-	}
-	
-	//per flow? delays
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<(double)tot_flow_delay[s*row+d]/sched_par.avg_pkt_length/flow_pkts_delivered[s*row+d]<<", ";//Need to clean this up
-		}
-		output<<"\n";
-	}
-	
-	// switch output rates
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<(double)flow_pkts_delivered[s*row+d]*sched_par.avg_pkt_length/current_time<<", ";//Need to clean this up
-		}
-		output<<"\n";
-	}
-	
-	//tcp_window size
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<ceil(2*(rand()/INT_MAX))<<", ";//don't record it yet either
-		}
-		output<<"\n";
-	}
-	//tcp flow left size
-	for(int s=0;s<row;s++)
-	{
-		for(int d=0;d<row;d++)
-		{
-			output<<ceil(2*((double)rand()/INT_MAX))<<", ";//don't record it yet either
-		}
-		output<<"\n";
-	}
-	
-	//close
-	output.close();
-	//*/	
 }

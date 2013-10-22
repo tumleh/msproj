@@ -1,4 +1,4 @@
-%Load_Grapher.m
+%Flow_Grapher.m
 %Plots delays experienced by different loads
 clear all;
 close all;
