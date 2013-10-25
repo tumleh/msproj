@@ -3,13 +3,14 @@
 #include <iostream>
 #include <queue>
 #include <iostream>
+#include <ostream>
 #include <fstream>
 #include <sstream>//for stringstream
 //#include <boost>//need to install boost
 #include <vector>
 using namespace std;
 
-#define row 8
+#define row 4 
 #define max_num_flows (row*row)
 #define clock_ticks_per_byte 8
 
@@ -69,6 +70,7 @@ struct Simulation_Parameters
 	int sched_type;// = 1;//ideal sim = 1//time slotted sim = 2//islip = 3
 	bool use_tcp;//=false;//self explanatory
 	bool use_markov_source;//use markov chains for generating traffic?
+	bool all_pkts_are_same;//decides whether to return one size for all pkts or not
 };
 /*-------------------------------------------------------------------*/
 /*--------------------- variable collections^ -----------------------*/
@@ -770,6 +772,111 @@ class Data_Collector
 		preamble = prefix;
 		dump_to_file(file_name,specified_count);
 	}
+
+	//ultimate version of this method (I hope).  Let's you use the specified count for the variables you flagged, 
+	//furthermore you it prints out the preamble you've chosen specified in the future with whatever message you like before dumping the data.  (specify the preamble with data_collector_instance.preamble = some_string
+	void dump(ostream* output,int specified_count)
+	{
+		bool aggregate=true;
+		double agg_value=0;
+		int temp_count=0;
+		(*output)<<preamble;
+		for(int this_stat=0;this_stat<num_stats;this_stat++)
+		{
+			//commented out for now//(*output)<<stat_name[this_stat]<<":\n";
+			if(!aggregate)
+			{
+				(*output)<<stat[this_stat].capacity()/row_length[this_stat]<<","<<row_length[this_stat]<<"\n";
+			}
+			agg_value=0;	
+			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
+			{
+				if(count_is_user_defined[this_stat])
+				{
+					temp_count=specified_count;
+				}
+				else
+				{
+					temp_count=count[this_stat][stat_index];
+				}
+				if(aggregate)
+				{
+					if(temp_count!=0)
+					{
+						switch(stat_type[this_stat])
+						{
+							case 0://avg
+								agg_value+= ((double) stat[this_stat][stat_index]/stat[this_stat].capacity()/temp_count);
+								break;
+							case 1://max
+								if(agg_value<stat[this_stat][stat_index])
+								{
+									agg_value=stat[this_stat][stat_index];
+								}
+								break;
+							case 2://variance:
+								agg_value+= ((double) stat[this_stat][stat_index]/stat[this_stat].capacity()/temp_count);
+								break;
+							default://something is wrong
+								(*output)<<"type error";
+						}
+					}
+				}
+				else
+				{
+					if(temp_count!=0)
+					{
+						switch(stat_type[this_stat])
+						{
+							case 0://avg
+								(*output)<< ((double) stat[this_stat][stat_index]/temp_count);
+								break;
+							case 1://max
+								(*output)<<stat[this_stat][stat_index];
+								break;
+							case 2://variance:
+								(*output)<< ((double) stat[this_stat][stat_index]/temp_count);
+								break;
+							default://something is wrong
+								(*output)<<"type error";
+						}
+					}
+					else
+					{
+						(*output)<<0;
+					}
+					if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
+					{
+						if((stat_index+1)%row_length[this_stat]==0)
+						{
+							(*output)<<"\n";
+						}
+						else if(stat_index<count[this_stat].capacity()-1)
+						{
+							(*output)<<" , ";
+						}
+					}
+					else if(stat_index<count[this_stat].capacity()-1)
+					{
+						(*output)<<" , ";
+					}
+				}
+			}//for stat_index	
+			if(aggregate)
+			{
+				(*output)<<stat_name[this_stat]<<": "<<agg_value<<"\n";
+			}
+			else
+			{
+				if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
+				{
+					(*output)<<"\n";
+				}
+			}
+		}//for this_stat
+	}
+
+
 	//rezeros the Data_Collector's collected stats but leaves setup otherwise unchanged
 	void reset()
 	{
@@ -943,6 +1050,7 @@ bool should_tcp_send(int flow)//perhaps should use a pointer to packet?
 {
 	if(flow_Q[flow].size()==0||NIC_state[flow]>0)
 	{
+		//logger.record("debug","NICState prevents transfer flow = ",NIC_state[flow]);
 		return false;
 	}
 	struct Packet p = flow_Q[flow].front();
@@ -1566,7 +1674,7 @@ int peak_switch_Q[row][row];
 //return a random packet length drawn from some distribution
 int pkt_length()
 {	
-	if(1==0)
+	if(sim_par.all_pkts_are_same)
 		return sched_par.avg_pkt_length;//2*slip_state.cell_length;
 	//assume 12 bytes per slot
 	if((double) rand()/INT_MAX<.5)//acks and control messages in response to a packet sent?
@@ -1791,7 +1899,7 @@ void dump_flows_to_file(string file_name)
 	ofstream output;
 	output.open(file_name.c_str());
 	
-	output<<num_flows<<","<<row<<"\n";
+	output<<num_flows<<","<<row<<","<<sched_par.avg_pkt_length<<"\n";
 	
 	for(int f=0;f<num_flows;f++)
 	{
@@ -1857,6 +1965,15 @@ void print(queue<Packet> (*Q)[row][row])
 		}
 		cout<<"\n";
 	}
+}
+
+void print(queue<Packet> (*Q)[max_num_flows])
+{
+	for(int f=0;f<num_flows;f++)
+	{
+		cout<<(*Q)[f].size()<<"\t";
+	}
+	cout<<"\n";
 }
 
 void print(Event *e)
@@ -1996,7 +2113,10 @@ Event next_NIC_update()
 			if(sim_par.use_tcp)//check if tcp is being simulated 
 			{
 				if(should_tcp_send(flow))
-				{	
+				{
+
+					logger.record("DEBUG","Tcp transfer started at current time = ",current_time);
+					logger.record("DEBUG","Tcp transfer started for flow = ",flow);
 					e.NIC_update[flow]=1;
 					time = current_time;
 				}
@@ -2638,7 +2758,7 @@ double iid_pkt_gen_test(double load,int avg_length)
 //returns true if some queue exceeds the specified value
 bool switch_saturation_check(queue<Packet> (*Q)[row][row],int sat_limit)
 {
-	int size_scaling =1;
+	double size_scaling =1.0;
 	if(sim_par.sched_type==3)//slip_state
 	{
 		size_scaling = sched_par.avg_pkt_length/slip_state.cell_length;
@@ -2647,7 +2767,7 @@ bool switch_saturation_check(queue<Packet> (*Q)[row][row],int sat_limit)
 	{
 		for(int d=0;d<row;d++)
 		{
-			if((*Q)[s][d].size()>300*size_scaling)
+			if((*Q)[s][d].size()>sat_limit*size_scaling)
 			{
 				cout<<"switch_Q["<<s<<"]["<<d<<"].size() = "<<(*Q)[s][d].size()<<"\n";
 				//cout<<"at count "<<count<<" and time "<<current_time<<"\n";
@@ -2660,14 +2780,14 @@ bool switch_saturation_check(queue<Packet> (*Q)[row][row],int sat_limit)
 
 bool flow_saturation_check(queue<Packet> (*Q)[max_num_flows],int sat_limit)
 {
-	int size_scaling =1;
+	double size_scaling =1.0;
 	if(sim_par.sched_type==3)//slip_state
 	{
 		size_scaling = sched_par.avg_pkt_length/slip_state.cell_length;
 	}
 	for(int f=0;f<max_num_flows;f++)
 	{
-		if((*Q)[f].size()>300*size_scaling)
+		if((*Q)[f].size()>sat_limit*size_scaling)
 		{
 			cout<<"flow_Q["<<f<<"].size() = "<<(*Q)[f].size()<<"\n";
 			return true;
@@ -2958,6 +3078,8 @@ void run_sim(int num_events)
 	cout<<"----------------------- Main Loop start: ------------------------------\n";
 	//main simulation loop:
 	bool end_simulation = false;
+	//temp test variable:
+	int max_last_Q=0;
 	for(int count=0;count < num_events;count++)
 	{
 		if(progress_bar("Main Loop Execution",count,num_events,5,timer))
@@ -2983,7 +3105,7 @@ void run_sim(int num_events)
 		{
 			stat_bucket.enter_data(flow_queue_avg,flow,flow_Q[flow].size()*time_elapsed);
 			stat_bucket.enter_data(flow_queue_var,flow,flow_Q[flow].size()*time_elapsed);
-			stat_bucket.enter_data(flow_queue_max,flow,flow_Q[flow].size()*time_elapsed);
+			stat_bucket.enter_data(flow_queue_max,flow,flow_Q[flow].size());
 		}
 		for(int s=0;s<row;s++)
 		{
@@ -2991,7 +3113,14 @@ void run_sim(int num_events)
 			{
 				stat_bucket.enter_data(switch_queue_avg,s,d,switch_Q[s][d].size()*time_elapsed);
 				stat_bucket.enter_data(switch_queue_var,s,d,switch_Q[s][d].size()*time_elapsed);
-				stat_bucket.enter_data(switch_queue_max,s,d,switch_Q[s][d].size()*time_elapsed);
+				if(sim_par.sched_type==3)//slip need to rescale queues
+				{
+					stat_bucket.enter_data(switch_queue_max,s,d,switch_Q[s][d].size()*slip_state.cell_length/sched_par.avg_pkt_length);
+				}
+				else
+				{
+					stat_bucket.enter_data(switch_queue_max,s,d,switch_Q[s][d].size());
+				}
 			}
 		}//*/
 		
@@ -2999,16 +3128,42 @@ void run_sim(int num_events)
 		
 		//instability check:
 		end_simulation = end_simulation||switch_saturation_check(&switch_Q,300);
-		end_simulation = end_simulation||flow_saturation_check(&flow_Q,300);
-		
+		end_simulation = end_simulation||flow_saturation_check(&flow_Q,2000);
+
 		//sanity check:  see if crossbar has an illegal schedule
 		end_simulation = end_simulation||illegal_Tx_schedule_check();
 		if(end_simulation)
 		{
 			cout<<"simulation aborted at count "<<count<<" and time "<<current_time<<"\n";
-			cout<<"queues:\n";
+			cout<<"switch queues:\n";
 			print(&switch_Q);
+			cout<<"flow queues:\n";
+			print(&flow_Q);
+			cout<<"max Q one step ago:\n";
+			cout<<max_last_Q<<"\n";
 			break;
+		}
+		else
+		{
+			max_last_Q=0;	
+			for(int f=0;f<num_flows;f++)
+			{
+				if(flow_Q[f].size()>max_last_Q)
+				{
+					max_last_Q=flow_Q[f].size();
+				}
+			}
+			for(int s=0;s<row;s++)
+			{
+				for(int d=0;d<row;d++)
+				{
+					if(max_last_Q<switch_Q[s][d].size())
+					{
+						max_last_Q=switch_Q[s][d].size();
+					}
+				}
+			}
+
 		}
 	}
 	
@@ -3046,12 +3201,12 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput)
 	//high throughput parameters (taken from my previous simulators):
 	double ht_on_2_off = .3;
 	double ht_off_2_on = .7;
-	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//generates packets at rate 1.0?
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length/row;//generates packets at rate 1.0?
 
 	//delay sensitive parameters:
-	double ds_on_2_off = .9219;
-	double ds_off_2_on = .0781;
-	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;//generates packets at rate 1?
+	double ds_on_2_off = 1-5.0/(2*row);//.0781;
+	double ds_off_2_on = 1-ds_on_2_off;//.9219;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length/row;//generates packets at rate 1?
 	
 	//decision variable:
 	double dec_var=0.0;
@@ -3170,7 +3325,7 @@ bool dc_flow_pattern_test()
 //tests whether my functions yield the same results as my main method.
 void tcp_load_sim()
 {
-	cout<<"Entering iid_load_sim\n";	
+	cout<<"Entering tcp_load_sim\n";	
 	//initialize stat collection mechanism:
 	stat_bucket.initialize_stat(flow_queue_avg,"avg flow queues",stat_bucket.avg,1,max_num_flows,true);
 	stat_bucket.initialize_stat(flow_queue_var,"flow queue variance",stat_bucket.variance,1,max_num_flows,true);
@@ -3198,6 +3353,7 @@ void tcp_load_sim()
 	double max_load =.99;
 	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
+
 	for(int type = 1;type<=3;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
@@ -3206,24 +3362,33 @@ void tcp_load_sim()
 			case 1://ideal qcsma
 			//set parameters correctly?  maybe not since we call init_sim below...
 				type_name="ideal_qcsma";
+				tcp_state.p_mark=.9;//from old simulator
+				tcp_state.congestion_threshold=10;//from old simulator
 				break;
 			case 2://slotted qcsma
 				type_name="slotted_qcsma";
+				tcp_state.p_mark=.5;//from old simulator
+				tcp_state.congestion_threshold=12;//from old simulator
 				break;
 			case 3://iterative slip
 				type_name="slip";
+				tcp_state.p_mark=.5;//from old simulator
+				tcp_state.congestion_threshold=10;//from old simulator
 				break;
 			default://error has occurred
-				cout<<"Error incorrect type in iid_load_sim\n";
+				cout<<"Error incorrect type in tcp_load_sim\n";
 				return;
 		}
+		tcp_state.p_mark=0;//temp test definitely remove
+		tcp_state.congestion_threshold=12;//from old simulator
+	
 		for(int i=1;i<=1;i++)
 		{
 			//initialize_state:
 			load = load_array[i-1];//.1*i*max_load;
 			init_sim(log_num_events,load);
 			
-			dc_flow_pattern(.5,.5);
+			//dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
 			sched_par.beta=.1;
@@ -3248,6 +3413,8 @@ void tcp_load_sim()
 			message.str("");
 			message<<"output/tcp_"<<type_name<<"_flow"<<i<<".csv";
 			dump_flows_to_file(message.str());
+			
+			stat_bucket.dump(&cout,current_time);
 			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
 		}
 	}
@@ -3274,14 +3441,13 @@ void iid_load_sim()
 	//Parameters:
 	sim_par.use_tcp=false;
 	sim_par.sched_type = 1;
-	sched_par.max_slip_its=6;
+	sched_par.max_slip_its=7;
 	int log_num_events = 5;
 	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
 	string type_name="";
 	stringstream message;
-	double max_load =.99;
 	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
 	for(int type = 1;type<=3;type++)//do different types of simulations
@@ -3332,6 +3498,8 @@ void iid_load_sim()
 			message.str("");
 			message<<"output/"<<type_name<<"_flow"<<i<<".csv";
 			dump_flows_to_file(message.str());
+			
+			stat_bucket.dump(&cout,current_time);
 			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
 		}
 	}
@@ -3430,6 +3598,11 @@ void qcsma_par_search()
 	
 	cout<<"best average delay was "<<best_delay<<" for alpha = "<<best_alpha<<", beta = "<<best_beta<<", p_cap = "<<best_p_cap<<"\n";
 }
+
+void streamPass(ostream* s)
+{
+	(*s)<<"helloWorlds!\n";
+}
 /*-------------------------------------------------------------------*/
 /*--------------------------- Experiments^ --------------------------*/
 /*-------------------------------------------------------------------*/
@@ -3440,7 +3613,12 @@ int main(void)
 	int unit_testing=0;
 	if(unit_testing == 1)
 	{
-		dc_flow_pattern_test();
+		streamPass(&cout);
+		ofstream temp_output;
+		temp_output.open("test_File!!.txt");
+		streamPass(&temp_output);
+		temp_output.close();
+		//dc_flow_pattern_test();
 		//markov_source_test();
 		//qcsma_par_search();
 		//test();//cout<<"\nend of test\n"<<iid_pkt_gen_test(.99,782)<<"\n";
@@ -3450,8 +3628,9 @@ int main(void)
 		
 		return 0;
 	}
-	
-	tcp_load_sim();//iid_load_sim();
+
+	sim_par.all_pkts_are_same=true;
+	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:
 	cout<<"final time in clock_ticks = "<<current_time<<"\n";

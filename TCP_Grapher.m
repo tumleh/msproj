@@ -10,7 +10,7 @@ slotted_qcsma = zeros(1,last_file-first_file+1);
 slip = zeros(1,last_file-first_file+1);
 load = zeros(1,last_file-first_file+1);
 
-for sim_type = 1:3
+for sim_type = 1:1
     for file = first_file:last_file
         input = csvread(strcat('./output/',file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
         index = 1-first_file+file;
@@ -20,6 +20,7 @@ for sim_type = 1:3
 
         num_flows=input(1,1);
         row = input(1,2);
+        avg_pkt_length=input(1,3);
         
         flow_src = input(2,1:num_flows);
         %figure;stem(flow_src);
@@ -47,11 +48,10 @@ for sim_type = 1:3
         end
         
         filter = [ht_filter;~ht_filter];%can isolate relevant flows
-        figure;imagesc(type_matrix);colorbar;
+        figure;subplot(1,2,2);imagesc(type_matrix);colorbar;
         title(strcat(file_name(sim_type,:),'flows'))
         ds_percent = ds_percent/(row*row)
         ht_percent = ht_percent/(row*row)
-
 
         %Sim_Grapher.m
         %clear all;
@@ -61,13 +61,14 @@ for sim_type = 1:3
         [w,h] = size(input);
         %imagesc(input.*(input<90).*(input>=0));colorbar;
         
+        
         dim_loc=[];%dimensions
         i=1;
         while i<w
             dim_loc = [dim_loc;i];
             i=i+input(i,1)+1;
         end
-        figure;
+        %figure;
         rate_matrix=[];
         rate_mean=[];
         for flow_type = 1:2%start with type 1;
@@ -77,12 +78,14 @@ for sim_type = 1:3
                 data_matrix = input(temp_index+1:+temp_index+input(temp_index,1),1:input(temp_index,2));
                 data=zeros(1,3);
                 [a,b]=size(data_matrix);
+                %filter=filter+(1-filter);
                 if(i==2)
                     data_matrix = data_matrix(filter(flow_type,:));
                 end
                 data(1) = min(min(data_matrix));
                 data(3) = max(max(data_matrix));
                 data(2) = sum(sum(data_matrix))/sum(sum(data_matrix~=0));
+                data = data./avg_pkt_length;%rescale to allow the graphs to make sense.
 %                 set(errorbar([data(2)],[0],'r'),'linestyle','none','LineWidth',3)
 %                 hold;
 %                 set(errorbar([mean([data(1),data(3)])],[((data(3)-data(1))/2)],'b'),'linestyle','none','LineWidth',3)
@@ -111,13 +114,16 @@ for sim_type = 1:3
                     case 3
                         name = strcat(name,' packet delay');%title(strcat(label(i/1+1),'variance'));
                 end
-                title(name);
+                %title(name);
             end
         end
 
-        figure;
+        subplot(1,2,1);%figure;
         rate_range = rate_matrix(:,2) - rate_matrix(:,1);
+        %rate_range=rate_range/avg_pkt_length;%rescale.
         rate_diff = [rate_matrix(:,1) rate_range];
+        %rate_diff=rate_diff/avg_pkt_length;%rescale
+        
         eh = errorbar(mean(rate_matrix'), rate_range/2);
         set(eh,'linestyle','none','LineWidth',3);
         set(gca,'ylim',[0 max(rate_matrix(1,2),rate_matrix(2,2))*1.1]);
