@@ -10,7 +10,7 @@
 #include <vector>
 using namespace std;
 
-#define row 4 
+#define row 32
 #define max_num_flows (row*row)
 #define clock_ticks_per_byte 8
 
@@ -236,6 +236,7 @@ public:
 				}
 				else//simply copy values:
 				{
+					has_acks = true;//signal you have acks now.
 					for(int f=0;f<max_num_flows;f++)
 					{
 						ack[f]=e->ack[f];
@@ -912,7 +913,8 @@ int switch_queue_max = 5;
 int packet_delay_avg = 6;
 int packet_delay_var = 7;
 int packet_delay_max = 8;
-Data_Collector stat_bucket(9);
+int tcp_window_avg = 9, tcp_window_max=10,tcp_sent_avg=11,tcp_sent_max=12;
+Data_Collector stat_bucket(9+4);
 
 struct Slip_State slip_state;
 struct TCP_State tcp_state;
@@ -1777,6 +1779,12 @@ void update_state(Event *event)
 					logger.record("debug","tcp_state.first_sent[f]: ",tcp_state.first_sent[f]);
 					logger.record("debug","tcp_state.last_sent[f]: ",tcp_state.last_sent[f]);
 					logger.record("debug","p.last_byte=",p.last_byte);
+					stat_bucket.enter_data(packet_delay_max+1,p.flow,tcp_state.window[p.flow]);
+					stat_bucket.enter_data(packet_delay_max+2,p.flow,tcp_state.window[p.flow]);
+					stat_bucket.enter_data(packet_delay_max+3,p.flow,tcp_state.last_sent[p.flow]-tcp_state.first_sent[p.flow]);
+					stat_bucket.enter_data(packet_delay_max+4,p.flow,tcp_state.last_sent[p.flow]-tcp_state.first_sent[p.flow]);
+	//*/
+				
 				}
 			}
 		}
@@ -2117,6 +2125,7 @@ Event next_NIC_update()
 
 					logger.record("DEBUG","Tcp transfer started at current time = ",current_time);
 					logger.record("DEBUG","Tcp transfer started for flow = ",flow);
+				
 					e.NIC_update[flow]=1;
 					time = current_time;
 				}
@@ -2428,6 +2437,7 @@ Event next_event()
 		f = event_heap.top();
 		while((!event_heap.empty())&&f.get_time()>=0&&(f.get_time()<=e.get_time()||e.get_time()<0))
 		{
+			logger.record("debug","event came off the heap! current_time = ",current_time);
 			e.merge(&f);
 			event_heap.pop();
 			f = event_heap.top();
@@ -3339,6 +3349,11 @@ void tcp_load_sim()
 	stat_bucket.initialize_stat(packet_delay_var,"packet delay variance",stat_bucket.variance,1,max_num_flows,false);
 	stat_bucket.initialize_stat(packet_delay_max,"max packet delay",stat_bucket.max,1,max_num_flows,false);
 	
+	//tcp debugging data:
+	stat_bucket.initialize_stat(packet_delay_max+1,"avg tcp window size",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max+2,"max tcp window size",stat_bucket.max,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max+3,"avg tcp sent",stat_bucket.avg,1,max_num_flows,false);
+	stat_bucket.initialize_stat(packet_delay_max+4,"max tcp sent",stat_bucket.max,1,max_num_flows,false);
 	//Parameters:
 	sim_par.use_tcp=true;
 	sim_par.use_markov_source=true;
@@ -3379,8 +3394,8 @@ void tcp_load_sim()
 				cout<<"Error incorrect type in tcp_load_sim\n";
 				return;
 		}
-		tcp_state.p_mark=0;//temp test definitely remove
-		tcp_state.congestion_threshold=12;//from old simulator
+		//tcp_state.p_mark=0;//temp test definitely remove
+		//tcp_state.congestion_threshold=12;//from old simulator
 	
 		for(int i=1;i<=1;i++)
 		{
@@ -3388,7 +3403,7 @@ void tcp_load_sim()
 			load = load_array[i-1];//.1*i*max_load;
 			init_sim(log_num_events,load);
 			
-			//dc_flow_pattern(.8/row,.2/row);
+			dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
 			sched_par.beta=.1;
@@ -3629,7 +3644,7 @@ int main(void)
 		return 0;
 	}
 
-	sim_par.all_pkts_are_same=true;
+	sim_par.all_pkts_are_same=false;
 	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:
