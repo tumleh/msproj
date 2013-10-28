@@ -3644,7 +3644,7 @@ int main(void)
 		return 0;
 	}
 
-	sim_par.all_pkts_are_same=false;
+	sim_par.all_pkts_are_same=true;
 	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:

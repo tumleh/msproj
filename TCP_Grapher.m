@@ -150,6 +150,6 @@ for sim_type = 1:3
         
     end
 end
-figure(iq);title('ideal qcsma'); set(gca,'ylim',[0 max_range*1.1]);
-figure(sq);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
-figure(is);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
+figure(iq);subplot(1,2,2);title('ideal qcsma');subplot(1,2,1);title('ideal qcsma'); set(gca,'ylim',[0 max_range*1.1]);
+figure(sq);subplot(1,2,2);title('time slotted qcsma');subplot(1,2,1);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
+figure(is);subplot(1,2,2);title('iterative slip');subplot(1,2,1);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
