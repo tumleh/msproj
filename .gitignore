@@ -25,3 +25,8 @@
 
 # Unrelated Text Files
 *.txt
+
+#Auxiliary Tex Files Not mentioned above
+*.aux
+*.gz
+*.pdf

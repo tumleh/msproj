@@ -2504,6 +2504,10 @@ void init_sim(int log_num_events,double iid_load)
 	slip_state.Tx_event[0]=-1;
 	slip_state.Tx_event[1]=0;
 	slip_state.cell_length=5;//length per cell in slip
+	if(sim_par.all_pkts_are_same)
+	{
+		slip_state.cell_length=pkt_length();
+	}
 	slip_state.header_length=1;
 	slip_state.contention_window=1;//slip_state.cell_length/10;//contention window size
 
@@ -3209,14 +3213,14 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput)
 {
 	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
 	//high throughput parameters (taken from my previous simulators):
-	double ht_on_2_off = .3;
-	double ht_off_2_on = .7;
-	double ht_gen_rate = 1.0/sched_par.avg_pkt_length/row;//generates packets at rate 1.0?
+	double ht_on_2_off = .7;
+	double ht_off_2_on = .3;
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
 
 	//delay sensitive parameters:
-	double ds_on_2_off = 1-5.0/(2*row);//.0781;
-	double ds_off_2_on = 1-ds_on_2_off;//.9219;
-	double ds_gen_rate = 1.0/sched_par.avg_pkt_length/row;//generates packets at rate 1?
+	double ds_on_2_off = 1-5.0/(2*row);//.9219;
+	double ds_off_2_on = 1-ds_on_2_off;//.0781;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;///row;//generates packets at rate 1?
 	
 	//decision variable:
 	double dec_var=0.0;
@@ -3359,7 +3363,7 @@ void tcp_load_sim()
 	sim_par.use_markov_source=true;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
-	int log_num_events = 6;
+	int log_num_events = 5;
 	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
@@ -3369,7 +3373,7 @@ void tcp_load_sim()
 	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
 
-	for(int type = 1;type<=3;type++)//do different types of simulations
+	for(int type = 1;type<=1;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
 		switch(sim_par.sched_type)

@@ -1,0 +1,108 @@
+\documentclass{IEEEtran}%[conference]{IEEEtran}%\documentclass[10pt]{article}%{article}{report}{letter}{book}{proc}{slides}%
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{wasysym}
+\usepackage{skull}
+
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue}
+
+%\textwidth=5.5in
+%\oddsidemargin=0.5in
+%\evensidemargin=0.0in
+%\textheight=8.0in
+%\topmargin=0.0in
+
+
+
+\begin{document}
+
+\title{Delay Comparison of Different Switch Architectures}
+
+
+
+% author names and affiliations
+% use a multiple column layout for up to three different
+% affiliations
+%\author{Stephan Adams and Libin Jiang}
+%\IEEEauthorblockA{Department of Electrical Engineering and Computer Science\\
+%University of California, Berkeley\\
+%\{shadams, jnchang\}@eecs.berkeley.edu}
+\author{\IEEEauthorblockN{S. H. Adams, L. Huang, A. Parekh, and J. Walrand \\}}
+%\IEEEauthorblockA{Department of Electrical Engineering and Computer Science\\
+%University of California, Berkeley\\
+%\{shadams,jnchang\}@eecs.berkeley.edu}}
+
+
+% conference papers do not typically use \thanks and this command
+% is locked out in conference mode. If really needed, such as for
+% the acknowledgment of grants, issue a \IEEEoverridecommandlockouts
+% after \documentclass
+
+% use for special paper notices
+%\IEEEspecialpapernotice{(Invited Paper)}
+
+% make the title area
+\maketitle
+
+\section{Next Step:}
+\begin{itemize}
+\item pick suitable parameters
+\item Build Experiments?
+\end{itemize}
+\section{To Do}
+\begin{itemize}
+\item Build Simulator: Now -- Oct 15th?
+\item Perform Experiments: Oct 15th -- November 15th?
+\item Write Paper: Now -- December 15th?
+\item Time Line
+\end{itemize}
+
+\section{Simulator Pieces:}
+\subsection{Crossbar}
+\subsection{Scheduling Modules}
+\subsection{Input Interface}
+\subsection{Packet Generation}
+\subsubsection{TCP Layer}
+\subsubsection{Application Layer}
+\subsection{Experiment Functions}
+\subsection{Analysis Tools}
+\subsubsection{Logs}
+\subsubsection{Data Collection}
+\subsubsection{Unit Tests}
+\begin{itemize}
+\item state is properly initialized
+\item event merging
+\item only real schedules are generated
+\item right averages are attained
+\item TCP waveforms are right when the channel is predictable
+\item Event merge.
+\end{itemize}
+\subsubsection{Matlab Data Display Tools}
+\subsection{Setting Parameters}
+
+
+\section{Perform Experiments}
+
+Try to mirror the experiments with the previous simulator as much as possible.
+\subsection{What kind of packet distributions?}
+Try bimodal distribution with high probability around a big size and small size with slight variations around the means.  Also single size with some slight variations.  Finally try without any of the small variations.
+\subsection{What kind of Flow patterns?}
+Start with those we have decided model the datacenter.
+\subsection{Throughput Vs Delay Graphs}
+\subsubsection{What are good parameters for QCSMA?}
+\subsubsection{Number of Slots for SLIP}
+\subsection{TCP performance}
+\subsection{Performance Variation as packet sizes become more predictable}
+
+\section{Write Paper}
+\subsection{Would like to show: QCSMA is better than SLIP by x\%}
+\subsection{Would like to show: Equal Length vs Variable Length Packets makes a big difference!}
+\subsection{Simulator Documentation}
+\subsubsection{Events and State}
+\subsubsection{How to change things}
+
+ 
+\end{document}

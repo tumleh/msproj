@@ -10,6 +10,7 @@ slotted_qcsma = zeros(1,last_file-first_file+1);
 slip = zeros(1,last_file-first_file+1);
 load = zeros(1,last_file-first_file+1);
 max_range =0;
+ht_on_2_off = .7;
 for sim_type = 1:3
     for file = first_file:last_file
         input = csvread(strcat('./output/',file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
@@ -35,11 +36,11 @@ for sim_type = 1:3
         ht_percent=0;
         ds_percent=0;
         type_matrix = zeros(row,row);
-        ht_filter = (on_2_off==.3);%has ones wherever there are ht flows
+        ht_filter = (on_2_off==ht_on_2_off);%has ones wherever there are ht flows
         for f = 1:num_flows
             type = 2;
             ds_percent=ds_percent+1;
-            if(on_2_off(f)==.3)
+            if(on_2_off(f)==ht_on_2_off)
                 type = 1;
                 ht_percent=ht_percent+1;
                 ds_percent=ds_percent-1;
