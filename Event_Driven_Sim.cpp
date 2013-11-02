@@ -1072,7 +1072,8 @@ void update_tcp_sent(int flow,int last_acked_byte)//perhaps use packet pointer?
 int ack_delay(int flow)
 {
 	int random_delay=0;//be something more formidable later.
-	return sched_par.num_routers*tcp_state.ema_delay[flow]+random_delay;
+	//num_routers that the packet still needs to travers + number of routers that the ack needs t travers on the return trip = (2*sched_par.num_routers-1)
+	return (2*sched_par.num_routers-1)*tcp_state.ema_delay[flow]+random_delay;
 }
 
 //creates an ack event and pushes it onto the even heap:
@@ -2513,8 +2514,8 @@ void init_sim(int log_num_events,double iid_load)
 
 	//initialize tcp_state
 	tcp_state.max_seg = 120;//1500 bytes per packet?
-	tcp_state.min_window = tcp_state.max_seg;//totally arbitrary at the moment
-	tcp_state.max_window = tcp_state.max_seg*30;//30 large packets per segment?
+	tcp_state.min_window = tcp_state.max_seg*5;//totally arbitrary at the moment
+	tcp_state.max_window = tcp_state.max_seg*60;//30 large packets per segment?
 	tcp_state.mult_dec = .5;//arbitrary
 	tcp_state.ema_par=.9;
 	tcp_state.congestion_threshold=20;
@@ -3206,6 +3207,63 @@ void tcp_testing()
 {
 }
 
+void dc_flow_pattern_v2(double high_throughput,double frac_flows)
+{
+	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
+ 	double delay_sensitive = 1-high_throughput;
+	//high throughput parameters (taken from my previous simulators):
+	double ht_on_2_off = .7;
+	double ht_off_2_on = .3;
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+
+	//delay sensitive parameters:
+	double ds_on_2_off = 1-5.0/(2*row);//.9219;
+	double ds_off_2_on = 1-ds_on_2_off;//.0781;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;///row;//generates packets at rate 1?
+	
+	//decision variable:
+	double dec_var=0.0;
+	num_flows=0;
+	for(int f=0;f<max_num_flows;f++)
+	{
+		dec_var=((double)rand()/RAND_MAX);//draw value of flow at random
+		if(dec_var<frac_flows)
+		{
+
+			dec_var=((double)rand()/RAND_MAX);//draw value of flow at random
+			if(dec_var<delay_sensitive)//delay sensitive flow
+			{
+				//assign things to num_flows so we only need to check the first num_flows
+				flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
+				flow_src[num_flows]=fmod(f/row,row);//source is arbitrary
+				pkt_gen_rate[num_flows]=ds_gen_rate;//generate packets every five hundred clockticks
+				on_2_off[num_flows]=ds_on_2_off;//eventually will be something
+				off_2_on[num_flows]=ds_off_2_on;//eventually will be something
+				gen_state[num_flows]=0;//eventually should startin steady state...*/
+				
+				num_flows++;//next one should not overlap
+			}
+			else if(dec_var<delay_sensitive+high_throughput)//high throughput flow
+			{
+				
+				//assign things to num_flows so we only need to check the first num_flows
+				flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
+				flow_src[num_flows]=fmod(f/row,row);//source is arbitrary
+				pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
+				on_2_off[num_flows]=ht_on_2_off;//eventually will be something
+				off_2_on[num_flows]=ht_off_2_on;//eventually will be something
+				gen_state[num_flows]=0;//eventually should startin steady state...*/
+				
+				num_flows++;
+			}
+			else//no flow.
+			{
+				//f generates zero packets.
+			}
+		}
+	}
+}
+
 //generate high and low priority flows:
 //in particular generate delay_sensitive percent delay sensitive flows
 //and high_throughput high throughput flows
@@ -3398,7 +3456,7 @@ void tcp_load_sim()
 				cout<<"Error incorrect type in tcp_load_sim\n";
 				return;
 		}
-		//tcp_state.p_mark=0;//temp test definitely remove
+		tcp_state.p_mark=0;//temp test definitely remove
 		//tcp_state.congestion_threshold=12;//from old simulator
 	
 		for(int i=1;i<=1;i++)
@@ -3407,6 +3465,8 @@ void tcp_load_sim()
 			load = load_array[i-1];//.1*i*max_load;
 			init_sim(log_num_events,load);
 			
+			//dc_flow_pattern_v2(.2,.1);
+			//dc_flow_pattern(.1*.8/row,.1*.2/row);
 			dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;

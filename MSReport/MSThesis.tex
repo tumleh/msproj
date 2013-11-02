@@ -45,7 +45,43 @@
 %\IEEEspecialpapernotice{(Invited Paper)}
 
 % make the title area
+
+
 \maketitle
+
+{\abstract
+ We compare slip and qcsma, find that considering packet size difference is very important to take into consideration.
+\begin{itemize}
+\item Metric is Delay (makes sense in DataCenter Environments)
+\item Delay VS Throughput result changes dramatically depending on packet size assumptions
+\item TCP acts as expected
+\end{itemize}
+}
+
+\section{Introduction}
+\begin{itemize}
+\item Routers are a core piece of our networks
+\item Need simple scheduling policies, since volume of traffic strongly penalizes per packet overheads 
+\item In the internet throughput is right metric -- can't make up for other delays in network
+\item In Data centers have enough control over other switches that delay becomes a good metric.
+\item Evolution of Routers -- SLIP killed head of Line delays but can't really be analyzed
+\item QCSMA -- solves NP hard problem, but may cause large delays?
+\item Question:  Should the optimality of QCSMA not show up in some performance gains over slip?  (In particular wrt delay?)
+\end{itemize}
+
+\section{Schedulers}
+\begin{itemize}
+\item How they work
+\item Design Philosophy
+\item Expected Properties
+\end{itemize}
+
+\section{Experiments}
+\begin{itemize}
+\item Uniform Packet Sizes VS 
+\item Design Philosophy
+\item Expected Properties
+\end{itemize}
 
 \section{Next Step:}
 \begin{itemize}

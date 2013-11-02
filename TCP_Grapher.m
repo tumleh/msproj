@@ -1,7 +1,7 @@
 %Flow_Grapher.m
 %Plots delays experienced by different loads
 clear all;
-close all;
+%close all;
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file
@@ -86,6 +86,15 @@ for sim_type = 1:3
             for i= 8:8%length(dim_loc)
                 temp_index = dim_loc(i);
                 data_matrix = input(temp_index+1:temp_index+input(temp_index,1),1:input(temp_index,2));
+                if(sim_type==1)
+                    delay_iq=data_matrix;
+                end
+                if(sim_type==2)
+                    delay_sq = data_matrix;
+                end
+                if(sim_type==3)
+                    delay_is=data_matrix;
+                end
                 q = data_matrix;
                 %figure;imagesc(data_matrix);colorbar;return;
                 data=zeros(1,3);
@@ -94,6 +103,10 @@ for sim_type = 1:3
                 if(i==8)
                     data_matrix = data_matrix(filter(flow_type,:));
                 end
+                length(data_matrix)
+                sort(data_matrix);
+                data_matrix=data_matrix(1:ceil(length(data_matrix)*.95));
+                length(data_matrix)
                 data(1) = min(min(data_matrix));
                 data(3) = max(max(data_matrix));
                 data(2) = sum(sum(data_matrix))/sum(sum(data_matrix~=0));
@@ -151,6 +164,9 @@ for sim_type = 1:3
         
     end
 end
+figure;subplot(2,1,1);delay_iq=sort(delay_iq(delay_iq~=0))/avg_pkt_length;stem(delay_iq);title('delay dist iq');
+subplot(2,1,2);stem(delay_iq(1:24));title('restricted delay dist iq');
 figure(iq);subplot(1,2,2);title('ideal qcsma');subplot(1,2,1);title('ideal qcsma'); set(gca,'ylim',[0 max_range*1.1]);
 figure(sq);subplot(1,2,2);title('time slotted qcsma');subplot(1,2,1);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
 figure(is);subplot(1,2,2);title('iterative slip');subplot(1,2,1);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
+
