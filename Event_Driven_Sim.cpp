@@ -3102,7 +3102,7 @@ void run_sim(int num_events)
 			logger.record("Main Loop Execution","Number of iterations processed = ",count);
 			logger.record("Main Loop Execution","Seconds Elapsed = ",difftime(time(NULL),timer));
 			logger.record("Main Loop Execution","Current Sim Time = ",current_time);
-			for(int f=0;f<max_num_flows;f++)
+			for(int f=0;f<num_flows;f++)
 			{
 
 				logger.record("DEBUG","flow:",f);
@@ -3707,7 +3707,7 @@ int main(void)
 		
 		return 0;
 	}
-
+	srand(145);
 	sim_par.all_pkts_are_same=true;
 	tcp_load_sim();//iid_load_sim();//
 	
