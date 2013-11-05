@@ -30,3 +30,5 @@
 *.aux
 *.gz
 *.pdf
+*.bbl
+*.blg

@@ -10,7 +10,7 @@
 #include <vector>
 using namespace std;
 
-#define row 32
+#define row 32 
 #define max_num_flows (row*row)
 #define clock_ticks_per_byte 8
 
@@ -236,7 +236,7 @@ public:
 				}
 				else//simply copy values:
 				{
-					has_acks = true;//signal you have acks now.
+					has_acks = e->has_acks;//signal you have acks now.
 					for(int f=0;f<max_num_flows;f++)
 					{
 						ack[f]=e->ack[f];
@@ -263,6 +263,7 @@ public:
 				}
 				else//simply copy values
 				{
+					gen_state_changed=e->gen_state_changed;
 					for(int f=0;f<max_num_flows;f++)
 					{
 						this->gen_state[f]=e->gen_state[f];
@@ -982,7 +983,7 @@ void inc_tcp_window(int flow)
 	logger.record("debug","tcp window incremented by:",tcp_state.max_seg*tcp_state.max_seg/tcp_state.window[flow]);
 	logger.record("debug","max seg : ",tcp_state.max_seg);
 	logger.record("debug","tcp_state.window[flow]: ",tcp_state.window[flow]);
-	tcp_state.window[flow] = tcp_state.window[flow]+tcp_state.max_seg*tcp_state.max_seg/tcp_state.window[flow];
+	tcp_state.window[flow] = tcp_state.window[flow]+(tcp_state.max_seg*tcp_state.max_seg)/tcp_state.window[flow];
 	if(tcp_state.window[flow]>tcp_state.max_window)
 	{
 		tcp_state.window[flow]=tcp_state.max_window;
@@ -1006,11 +1007,14 @@ void tcp_update(Event *e)
 	{
 		return;
 	}
-	for(int f=0;f<max_num_flows;f++)
+	for(int f=0;f<num_flows;f++)
 	{
 		logger.record("debug","flow =",f);
 		logger.record("debug","ack[f]=",e->ack[f]);
 		logger.record("debug","tcp_state.first_sent[f]=",tcp_state.first_sent[f]);
+		logger.record("debug","tcp_state.last_sent[f]=",tcp_state.last_sent[f]);
+		logger.record("debug","tcp_state.window[f]=",tcp_state.window[f]);
+		logger.record("debug","flow_Q[f].size()=",(int)flow_Q[f].size());
 		if(e->ack[f]>tcp_state.last_sent[f])
 		{
 			logger.record("ERROR","ack sent before pkt sent");
@@ -1064,7 +1068,7 @@ void update_tcp_sent(int flow,int last_acked_byte)//perhaps use packet pointer?
 {
 	if(last_acked_byte>tcp_state.first_sent[flow])
 	{
-		tcp_state.first_sent[flow]+= last_acked_byte;
+		tcp_state.first_sent[flow] = last_acked_byte;
 	}
 }
 
@@ -1082,7 +1086,7 @@ void gen_ack(struct Packet *p)
 	Event e;
 	e.time = current_time+ack_delay((*p).flow);//?
 	e.has_acks=true;
-	for(int f=0;f<max_num_flows;f++)
+	for(int f=0;f<num_flows;f++)
 	{
 		e.ack[f]=0;
 		e.ecn_bit[f]=false;
@@ -1772,14 +1776,14 @@ void update_state(Event *event)
 				NIC_state[f] = p.length;
 				if(sim_par.use_tcp)
 				{
-					logger.record("debug","pkt just sent from flow: ",f);
-					logger.record("debug","pkt.length: ",p.length);
+					//logger.record("debug","pkt just sent from flow: ",f);
+					//logger.record("debug","pkt.length: ",p.length);
 
 					tcp_state.last_sent[f]+=p.length;
 					//p.last_byte=tcp_state.last_sent[f];
-					logger.record("debug","tcp_state.first_sent[f]: ",tcp_state.first_sent[f]);
-					logger.record("debug","tcp_state.last_sent[f]: ",tcp_state.last_sent[f]);
-					logger.record("debug","p.last_byte=",p.last_byte);
+					//logger.record("debug","tcp_state.first_sent[f]: ",tcp_state.first_sent[f]);
+					//logger.record("debug","tcp_state.last_sent[f]: ",tcp_state.last_sent[f]);
+					//logger.record("debug","p.last_byte=",p.last_byte);
 					stat_bucket.enter_data(packet_delay_max+1,p.flow,tcp_state.window[p.flow]);
 					stat_bucket.enter_data(packet_delay_max+2,p.flow,tcp_state.window[p.flow]);
 					stat_bucket.enter_data(packet_delay_max+3,p.flow,tcp_state.last_sent[p.flow]-tcp_state.first_sent[p.flow]);
@@ -1814,7 +1818,7 @@ void update_state(Event *event)
 						if(sim_par.use_tcp)
 						{
 							logger.record("debug","ema_delay = ",tcp_state.ema_delay[p.flow]);
-							tcp_state.ema_delay[p.flow]=(current_time-p.arrival_time)+tcp_state.ema_par*tcp_state.ema_delay[p.flow];//ema(n) = delay + alpha*ema(n-1)
+							tcp_state.ema_delay[p.flow]=(current_time-p.arrival_time)*(1-tcp_state.ema_par)+tcp_state.ema_par*tcp_state.ema_delay[p.flow];//ema(n) = delay + alpha*ema(n-1)
 							
 							logger.record("debug","flow = ",p.flow);
 							logger.record("debug","ema_delay = ",tcp_state.ema_delay[p.flow]);
@@ -1857,7 +1861,7 @@ void update_state(Event *event)
 	
 	if(event->gen_state_changed)
 	{
-		logger.record("DEBUG","gen_state_changed! current_time = ",current_time);
+		//logger.record("DEBUG","gen_state_changed! current_time = ",current_time);
 		for(int f=0;f<num_flows;f++)
 		{
 			gen_state[f]=event->gen_state[f];
@@ -2206,7 +2210,7 @@ int geo_exp(double* expiration_p,int* expired_var,int num_var)
 	//cout<<"p = "<<p<<"\n";
 	if(p<=0||p>1)
 	{
-		logger.record("ERROR","illegal probability in geo_exp with p = ",p);
+		//logger.record("ERROR","illegal probability in geo_exp with p = ",p);
 		return -1;//expired_var;//some weird error occured.
 	}
 	
@@ -2436,7 +2440,7 @@ Event next_event()
 	{
 		//cout<<heap not empty
 		f = event_heap.top();
-		while((!event_heap.empty())&&f.get_time()>=0&&(f.get_time()<=e.get_time()||e.get_time()<0))
+		while(((!event_heap.empty())&&f.get_time()>=0)&&(f.get_time()<=e.get_time()||e.get_time()<0))
 		{
 			logger.record("debug","event came off the heap! current_time = ",current_time);
 			e.merge(&f);
@@ -2520,7 +2524,7 @@ void init_sim(int log_num_events,double iid_load)
 	tcp_state.ema_par=.9;
 	tcp_state.congestion_threshold=20;
 	tcp_state.p_mark=0.5;
-	for(int f=0;f<max_num_flows;f++)
+	for(int f=0;f<num_flows;f++)
 	{
 		tcp_state.window[f]=tcp_state.min_window;//?
 		tcp_state.last_sent[f] = 0;
@@ -3163,6 +3167,17 @@ void run_sim(int num_events)
 			max_last_Q=0;	
 			for(int f=0;f<num_flows;f++)
 			{
+				if(flow_Q[f].size()>0&&NIC_state[f]<=0)
+				{
+				/*
+					int flow = f;
+					cout<<"tcp should be transmitting at flow"<<f<<"\n";
+					cout<<"queue size = "<<flow_Q[f].size()<<" NIC_state = "<<NIC_state[f]<<"\n";
+					cout<<"should_tcp_send(f) = "<<should_tcp_send(f)<<" current_time ="<<current_time<<"\n";
+					
+					cout<<"tcp_window "<<tcp_state.window[flow]<<" tcp_state.last_sent[flow]== " <<tcp_state.last_sent[flow]<<"tcp_state.first_sent[flow]= "<<tcp_state.first_sent[flow]<<"\n";//true if there are enough bytes left in the window size
+					cout<<" = "<<should_tcp_send(f)<<" current_time ="<<current_time<<"\n";//*/
+				}
 				if(flow_Q[f].size()>max_last_Q)
 				{
 					max_last_Q=flow_Q[f].size();
@@ -3431,7 +3446,7 @@ void tcp_load_sim()
 	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
 
-	for(int type = 1;type<=1;type++)//do different types of simulations
+	for(int type = 1;type<=3;type++)//do different types of simulations
 	{	
 		sim_par.sched_type = type;
 		switch(sim_par.sched_type)
@@ -3707,7 +3722,7 @@ int main(void)
 		
 		return 0;
 	}
-	srand(145);
+	//srand(145);
 	sim_par.all_pkts_are_same=true;
 	tcp_load_sim();//iid_load_sim();//
 	
