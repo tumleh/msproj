@@ -82,7 +82,8 @@ for sim_type = 1:3
         %figure;
         rate_matrix=[];
         rate_mean=[];
-        for flow_type = 1:2%start with type 1;
+        for flow_type_temp = 1:2%start with type 1;
+            flow_type=2;
             %only do the first one first
             for i= 8:8%length(dim_loc)
                 temp_index = dim_loc(i);

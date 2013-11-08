@@ -3288,7 +3288,7 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput)
 	//high throughput parameters (taken from my previous simulators):
 	double ht_on_2_off = .7;
 	double ht_off_2_on = .3;
-	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+	double ht_gen_rate = 2.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
 
 	//delay sensitive parameters:
 	double ds_on_2_off = 1-5.0/(2*row);//.9219;
@@ -3433,7 +3433,7 @@ void tcp_load_sim()
 	stat_bucket.initialize_stat(packet_delay_max+4,"max tcp sent",stat_bucket.max,1,max_num_flows,false);
 	//Parameters:
 	sim_par.use_tcp=true;
-	sim_par.use_markov_source=true;
+	sim_par.use_markov_source=false;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
 	int log_num_events = 5;
@@ -3471,10 +3471,10 @@ void tcp_load_sim()
 				cout<<"Error incorrect type in tcp_load_sim\n";
 				return;
 		}
-		tcp_state.p_mark=0;//temp test definitely remove
+		//tcp_state.p_mark=0;//temp test definitely remove
 		//tcp_state.congestion_threshold=12;//from old simulator
 	
-		for(int i=1;i<=1;i++)
+		for(int i=8;i<=8;i++)
 		{
 			//initialize_state:
 			load = load_array[i-1];//.1*i*max_load;
@@ -3482,7 +3482,7 @@ void tcp_load_sim()
 			
 			//dc_flow_pattern_v2(.2,.1);
 			//dc_flow_pattern(.1*.8/row,.1*.2/row);
-			dc_flow_pattern(.8/row,.2/row);
+			//dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
 			sched_par.beta=.1;
@@ -3722,8 +3722,8 @@ int main(void)
 		
 		return 0;
 	}
-	//srand(145);
-	sim_par.all_pkts_are_same=true;
+	srand(145);
+	sim_par.all_pkts_are_same=false;
 	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:

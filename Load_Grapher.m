@@ -4,7 +4,7 @@ clear all;
 close all;
 file_name = char('ideal_qcsma','slotted_qcsma','slip');
 first_file = 1;%first file
-last_file = 8;%last file
+last_file = 6;%last file
 ideal_qcsma = zeros(1,last_file-first_file+1);
 slotted_qcsma = zeros(1,last_file-first_file+1);
 slip = zeros(1,last_file-first_file+1);
