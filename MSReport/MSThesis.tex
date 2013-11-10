@@ -15,8 +15,6 @@
 %\textheight=8.0in
 %\topmargin=0.0in
 
-
-
 \begin{document}
 
 \title{Delay Comparison of Different Switch Architectures}
@@ -168,7 +166,7 @@ The performance of this algorithm is expected be quite bad when the packets all 
 
 To compare the delay performance of the different schedulers we built an event driven simulators in C++.  All the graphs were plotted for $32 \times 32$ switches (i.e. 32 inputs and 32 outputs).  Simulation time is discrete with the minimum time step assumed to be the length of one of the bit transmissions of one of the schedulers.   The packet lengths are given in lengths of these time steps.  Because modern crossbars are transmit packets in parallel we assume that it takes 5 clock ticks to transmit a 64 byte packet, and 120 clock ticks to transmit a 1500 byte packet.  For all the Slip simulations we assumed there were $6$ contention slots used to generate the crossbar schedules, but that these calculations were pipelined in such a way as to make the net scheduling was negligible compared to the packet transmission time.  Simulation inputs were flow patterns passing through the switch, which were identical for all switches. %The switch operation was simulated for $10^6$ time steps, in order to reach the steady state switch behavior%during a given experiment in order to avoid  make the comparison between different scheduling policies and module types without worrying about inconsistencies in flow statistics.   
 
- The simulations fell into two categories: an open loop version meant to measure switch throughput, and a closed loop version meant to mimic TCP operation over the switch.  %We go into more depth in subsequent sections.
+ The simulations fell into two categories: an open loop version meant to measure switch throughput, and a closed loop version meant to mimic TCP operation over the switch.  For more details on the simulator design please see appendix \ref{code_design}.%We go into more depth in subsequent sections.
  
 \section{Open Loop Simulations}
 
@@ -200,7 +198,7 @@ In order to test whether this poor performance was due to the higher collision r
 
 \begin{figure}%[h]
 	 \includegraphics[width=90mm]{vs_load.eps}
-	\caption{Delay vs throughput graphs for loads in a scenario in which every packet has a probability of $1/2$ of being the minimum size and $1/2$ of being the maximum size. With the variable sized packets Slip no longer outperforms the practical version of QCSMA.  QCSMA still performs similarly to the single length scenario.  (Note that the x axis in this graph is different from that in figure \ref{one_size}.) The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
+	 \caption{Delay vs throughput graphs for loads in a scenario in which every packet has a probability of $1/2$ of being the minimum size and $1/2$ of being the maximum size. With the variable sized packets Slip no longer outperforms the practical version of QCSMA.  QCSMA still performs similarly to the single length scenario.  (Note that the x axis in this graph is different from that in figure \ref{one_size}.) The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
 	\label{variable_size}
 \end{figure}
 
@@ -217,13 +215,11 @@ We performed a variety of experiments meant to simulate different application co
 
 As the throughput supported by the different switches seems comparable, we focus on the delay performance of the switches under TCP connections.  TCP Inputs to the simulator can be represented as a flow type matrix such as the one visualized in figure \ref{typical_flows}.  The entry $s,d$ represents the type of flow from input $s$ to output $d$.  We consider two main types of flows, high throughput flows that are relatively insensitive to delay (type 1 flows) and low throughput flows that are sensitive to delays (type 2 flows).  The packets generated for TCP transmission are generated according to Markov ON OFF processes much as in the open loop simulations with one producing a very low throughput set of packets and the other being generating a much higher throughput, in order to simulate the different types of datacenter flows.  The type 1 process has transitions from ON to OFF transition with probability $.3$ and from OFF to ON with probability $.7$.  The type 2 process transitions from ON to OFF with probability $0.0781$ and from OFF to ON with probability $0.9219$.  When the process is ON it generates packets, and it does not when it is OFF.   State transitions occur at each time step.
 
-The TCP window size is updated by additive increase multiplicative decrease, with feedback coming in the form of acks that are generated whenever a packet successfully traverses the switch.  The acks in our simulation are not actually packets sent through our network, but rather simply notify our TCP simulator after an artificially determined delay.  After an ack notifies the TCP flow it adjusts its send window statistics accordingly.  The ack is delayed by a factor of 10 times the delay it took the packet to traverse the switch in order to simulate the round trip time in a datacenter that has five switches between the input and its intended output.\\
-
+The TCP window size is updated by additive increase multiplicative decrease, with feedback coming in the form of acks that are generated whenever a packet successfully traverses the switch.  The acks in our simulation are not actually packets sent through our network, but rather simply notify our TCP simulator after an artificially determined delay.  After an ack notifies the TCP flow it adjusts its send window statistics accordingly.  The ack is delayed by a factor of 10 times the delay it took the packet to traverse the switch in order to simulate the round trip time in a datacenter that has five switches between the input and its intended output.
 
 \subsubsection{Parameter Search}
 
 In our model there is no maximum buffer size, and consequently no dropped packets.  Consequently, we need to give TCP feedback on when to halve its window size by another means.  We do this by using the explicit congestion control bit in the tcp header.  Our simulations mark packets as facing congestion with a probability $p_{\text{ecn}}$ if the packets arrive at a queue at or exceeding a threshold $T_{\text{ecn}}$ packets.  After our TCP receives an ack which announces that it faced congestion, it will halve it's window, and wait one round trip time before rehalving it's window, in order to flush out all the duplicate congestion announcements due to packets sent before the congestion announcement was received.
-
 
   TCP should be optimized for its environment so we conducted a parameter search to determine good values for each of the switches.  While the QCSMA was tuned to perform well for a worst case scenario, for TCP we are interested in improving average performance.  The search for the two parameters $p_{\text{ecn}}$ and $T_{\text{ecn}}$ is conducted over what we consider an average set of average flow statistics for a datacenter, as suggested in \cite{Benson} and \cite{Kandula} and shown in figure \ref{typical_flows}.
 
@@ -239,7 +235,7 @@ We present 4 simulations in which we simulated different flow patterns to our sc
 \item spread and aggregate 
 %\item three simultaneous spread and aggregate
 \item typical 
-\item typical and spread and aggregate \\
+\item typical and spread and aggregate
 \end{itemize}
 
 \subsubsection{All to all (core switch)}
@@ -407,8 +403,52 @@ Start with those we have decided model the datacenter.
 \subsubsection{Events and State}
 \subsubsection{How to change things}
 
+
 \label{bib}
 \bibliography{MSThesis}{}
 \bibliographystyle{plain} 
  
+ %\appendix
+  \appendices 
+ \section{Simulation Design} \label{code_design}
+ 
+ Because the simulation tracked events on two very different time scales (that of packet transmissions and that of schedulers clock ticks) we chose to use an event driven simulator.  This means that we had a mechanism for calculating the next event (and time at which it occurred) given the current state of the system, instead of calculating the new state at each time step.
+ 
+ \subsection{Main components}
+ To accommodate this simulation model, the heart of the code was split into essentially two logical pieces: State variables, and state transitions.  Logically, the heart of the simulator looks like this:
+ \begin{verbatim}
+ while(num_events<tot_num_events)
+ {
+      event = next_event()
+      update_state(event)
+      num_events=num_events+1
+ }
+ \end{verbatim}
+ The update$\_$state() function, takes a state transition (in the form of an instantiation of the Event class) and calculates the new state of the system.  Similarly, the next$\_$event() function calculates the next state transition based on the current state of the system.  Of course there are sanity checks built in, machinery to setup the initial state, and machinery used to record the results of the calculation, but at the most basal level, this is what the simulator is doing.  To understand this function I will talk briefly about what constitutes the state, what an event is, and how the next event is calculated.
+ 
+ \subsubsection{State}
+ 
+The state with a few minor exceptions mainly of different queues of packets which contain the crucial information about where to route the packets and when they arrived into the system.  Generally each state is regulated by a particular kind of event.
+\begin{itemize}
+\item {\bf Current Time}\\
+ --  This variable determined the time elapsed in scheduler clock ticks since the start of the simulation.
+\item {\bf Packet Generation State}\\
+ --  For the simulations which generated packets as Markov chains as inputs each flow had an associated state (ON or OFF)
+\item {\bf Flow Queues}\\
+ --  Upon generation each packets are placed in flow queues, which represent queues of different application flows within a computer.  Depending on the simulation, packets would stay in here until released by the TCP flow regulator.
+\item {\bf NIC state}\\
+ --  This state keeps track of which flows are being transferred from the ``computer" and transferred to the network.  In the closed loop simulations this is regulated by the TCP state.
+\item {\bf Switch Queues}\\
+--  Once a packet is transferred out of the flow queues, it is placed into the switch queues, which in conjunction with the crossbar state is used to calculate the next scheduler events.
+\item {\bf Crossbar State}\\
+--  The crossbar state keeps track of which inputs and outputs are currently transmitting packets and how much longer it will take to finish the transmission.
+\item {\bf Event Heap (ACKs)}\\
+--  Upon exit of the system, and ACK along with an appropriate arrival time is generated and placed onto the event heap.  
+\end{itemize}
+
+
+
+\subsection{Auxiliary structures}
+
+
 \end{document}
