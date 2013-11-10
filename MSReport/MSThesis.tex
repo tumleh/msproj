@@ -446,6 +446,43 @@ The state with a few minor exceptions mainly of different queues of packets whic
 --  Upon exit of the system, and ACK along with an appropriate arrival time is generated and placed onto the event heap.  
 \end{itemize}
 
+\subsubsection{Events}
+
+All changes to the state occur through the application of an Event object to the state through the update$\_$state() function.  So essentially, an Event object consists of three things: the change to be applied to the state, the time at which it occurs, and a merge() function, to calculate a new Event from two candidate Events.  Of these three things, the merge() is the only one which is the least straightforward:
+\begin{verbatim}
+Event merge(event)
+{
+     if(event occurs before this)
+     {
+          return event
+     }
+     if(event occurs after this)
+     {
+           return this
+     }
+     if(event occurs simultaneously with this)
+     {
+            include both state changes
+            return this
+     }
+}
+\end{verbatim}
+
+Given this structure the next$\_$event() function is philosophically structured as follows:
+
+\begin{verbatim}
+Event next_event()
+{
+     event = next_pkt_gen()
+     event.merge(next_nic_update())
+     event.merge(next_crossbar_update())
+     event.merge(event_heap.next_ack())
+     return event
+}
+\end{verbatim}
+
+Notice that there is no effort to save the events that merge discards.  This is because the stochastic events are generated in a memoryless fashion parametrized by the state (i.e. either occur or do not with the same probability at each time step).  The deterministic events are all a function of the state and can be recalculated from the new state that results after the application of an earlier event.  The ACKs are stored in the event$\_$heap, but could in theory also have their own state variable.  Other deterministic events could also be stored in the event$\_$heap if the depending on the preference of the coder.
+
 
 
 \subsection{Auxiliary structures}
