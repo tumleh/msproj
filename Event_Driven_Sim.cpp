@@ -2321,7 +2321,21 @@ Event next_markov_pkt_gen()
 	{
 		for(int f=0;f<num_flows;f++)
 		{
-			e.pkt_gen[f]=pkt_generated[f];
+			if(sim_par.use_tcp)//possibly bogus -- only accept packets if the send window can accomodate them. ADMISSION CONTROL
+			{
+				if(tcp_state.window[f]-(tcp_state.last_sent[f]-tcp_state.first_sent[f])-flow_Q[f].size()*sched_par.avg_pkt_length>0)
+				{
+					e.pkt_gen[f]=pkt_generated[f];//e.pkt_gen[f]=1;
+				}
+				else
+				{
+					e.pkt_gen[f]=0;
+				}
+			}
+			else
+			{
+				e.pkt_gen[f]=pkt_generated[f];
+			}
 		}
 	}
 	//return event
@@ -2369,7 +2383,21 @@ Event next_pkt_gen()
 		{
 			if(dec_var<pkt_gen_rate[f])
 			{
-				e.pkt_gen[f]=1;//
+				if(sim_par.use_tcp)//possibly bogus -- only accept packets if the send window can accomodate them. ADMISSION CONTROL
+				{
+					if(tcp_state.window[f]-(tcp_state.last_sent[f]-tcp_state.first_sent[f])-flow_Q[f].size()*sched_par.avg_pkt_length>0)
+					{
+						e.pkt_gen[f]=1;
+					}
+					else
+					{
+						e.pkt_gen[f]=0;
+					}
+				}
+				else
+				{
+					e.pkt_gen[f]=1;//
+				}
 			}
 			else
 			{
@@ -2380,7 +2408,21 @@ Event next_pkt_gen()
 		{
 			if(dec_var<pkt_gen_rate[f]/(1-(1-p)/p_no_pkts))//p_given_info)
 			{
-				e.pkt_gen[f]=1;
+				if(sim_par.use_tcp)//possibly bogus -- probably bogus ADMISSION CONTROL
+				{
+					if(tcp_state.window[f]-(tcp_state.last_sent[f]-tcp_state.first_sent[f])-flow_Q[f].size()*sched_par.avg_pkt_length>0)
+					{
+						e.pkt_gen[f]=1;
+					}
+					else
+					{
+						e.pkt_gen[f]=0;
+					}
+				}
+				else
+				{
+					e.pkt_gen[f]=1;
+				}
 				pkt_was_generated=1;
 			}
 			else
@@ -3474,7 +3516,7 @@ void tcp_load_sim()
 		//tcp_state.p_mark=0;//temp test definitely remove
 		//tcp_state.congestion_threshold=12;//from old simulator
 	
-		for(int i=8;i<=8;i++)
+		for(int i=9;i<=9;i++)
 		{
 			//initialize_state:
 			load = load_array[i-1];//.1*i*max_load;
