@@ -38,7 +38,8 @@ for sim_type = 1:3
         ds_percent=0;
         type_matrix = zeros(row,row);
         ht_filter = (on_2_off==ht_on_2_off);%has ones wherever there are ht flows
-        for f = 1:num_flows
+        for temp_f = 1:num_flows
+            f=num_flows-temp_f+1;
             type = 2;
             ds_percent=ds_percent+1;
             if(on_2_off(f)==ht_on_2_off)
@@ -83,7 +84,7 @@ for sim_type = 1:3
         rate_matrix=[];
         rate_mean=[];
         for flow_type_temp = 1:2%start with type 1;
-            flow_type=2;
+            flow_type=flow_type_temp;
             %only do the first one first
             for i= 8:8%length(dim_loc)
                 temp_index = dim_loc(i);

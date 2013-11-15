@@ -75,13 +75,6 @@ Although delay is clearly a very important metric to consider in these settings,
 \item Question:  Should the optimality of QCSMA not show up in some performance gains over slip?  (In particular wrt delay?)
 \end{itemize}
 
-
-\section{Schedulers}
-\begin{itemize}
-\item How they work
-\item Design Philosophy
-\item Expected Properties
-\end{itemize}
 \section{Switch Schedulers}
 We consider two different scheduling algorithms used to route packets across a crossbar based switch.  Iterative Slip -- a practical scheme design by Nick McKeown to solve the issues of head of line delay \cite{McKeown}, and QCSMA -- a probabilistic scheduling policy developed and optimized to be full throughput by Libin Jiang \cite{Libin}.
 
@@ -154,13 +147,7 @@ Where we chose $p_{\text{cap}}=.2$.  This then yields the following practical sc
 
 The performance of this algorithm is expected be quite bad when the packets all have the same length, as it will yield a large number of queues competing for an output at the same time, and therefore also an increased chance of collision.  One possible approach to mitigate this is to adjust the request probabilities using an adaptive sheme. such as the one first proposed by Hajek and van Loon \cite{Hajek_van_Loon}, which was proven to be optimal in wireless environments.  The base probabilities are multiplied by $(1.518,1.000,.559)$  in the event of (no transmission, success, collision).  While this does require a trinary broadcast at the end of each contention slot it is possible to implement the feedback with a binary broadcast as well.  We have shied away from this approach, to compare just the simplest case performance of our different algorithms.
 
-\section{Experiments}
-\begin{itemize}
-\item Uniform Packet Sizes VS More Realistic Setting
-\item Parameter Choices
-\item Load Graphs
-\item TCP Graphs Choice of Load Patterns
-\end{itemize}
+
 
 \section{Simulator}
 
@@ -261,7 +248,6 @@ Notably the gain of the unimplementable ideal QCSMA is negligible compared to th
  \hline\hline 
  Switch & $T_{\text{ecn}}$ & $p_{\text{ecn}}$ \\
   [0.5ex] \hline 
-  Benes&23&.5 \\
  SLIP&10&.5 \\
   QCSMA&12&.5  \\
    ideal  QCSMA&10&.9  \\
@@ -277,7 +263,7 @@ One of the most famous (if not most popular) applications in modern datacenters 
 
 This does not accurately model a MapReduce job for several reasons.  The biggest departure from a typical MapReduce job is that our type 2 flows do not have similar synchronization or burstiness properties due to the similar completion times of computations in a real MapReduce job.  Furthermore the large delays imposed by the artificial 10 hop distance for the acks is responsible for another difference in our model.  Still we hope that it suffices to give an impression of how a spread and aggregate application might behave.
 
-The performance for the different crossbar applications is comparable as can be seen in figure \ref{spreadagg_delay_spread}.
+The performance for the different schedulers is comparable as can be seen in figure \ref{spreadagg_delay_spread}.
 
 \begin{figure}%[h]
 	% \includegraphics[width=90mm]{spreadagg.png}
@@ -305,9 +291,9 @@ In our simulations in this scenario all the crossbar based switches once again e
 \end{figure}
 
 \subsubsection{`Typical' Flows and spread and aggregate}
-Finally to explore switch performance in a datacenter setting that supports both  `typical' datacenter loads and some MapReduce like jobs, we subjected the switch to a superposition of the datacenter load and two spread and aggregate loads on servers 1 and 11 as seen in figure \ref{typ_mult2}.  The performance of the crossbar based switches is again comparable (see figure \ref{typ_mult2_delays}), while the Benes switch exhibits significantly higher delays. The largest delays in the Benes switch taking more than three times as long as the worst crossbar design.
+Finally to explore switch performance in a datacenter setting that supports both  `typical' datacenter loads and some MapReduce like jobs, we subjected the switch to a superposition of the datacenter load and two spread and aggregate loads on servers 1 and 11 as seen in figure \ref{typ_mult2}.  The performance of the crossbar based switches is again comparable (see figure \ref{typ_mult2_delays}).
 
-As can be seen in figure \ref{mixed_delay_matrix} the long delays are due to the spread and aggregate flows for all the switches, but for the Benes network they do especially badly.  Note that since it is the spread and aggregate flows (all type 2 flows) that suffer, figure \ref{typ_mult2_delays} shows type 2 as being particularly slow.  This is only true because the spread and aggregate flows are heavily delayed as opposed to the spread and aggregate flows slowing down other type 2 flows.  The other very interesting observation to make is that the incast flows in the Benes switch actually fair pretty well.  It is the many to one transmission that cannot take full advantage of the multipath and therefore incurs the large delays.
+As can be seen in figure \ref{mixed_delay_matrix} the long delays are due to the spread and aggregate flows for all the switches.  Note that since it is the spread and aggregate flows (all type 2 flows) that suffer, figure \ref{typ_mult2_delays} shows type 2 as being particularly slow.  This is only true because the spread and aggregate flows are heavily delayed as opposed to the spread and aggregate flows slowing down other type 2 flows
 \begin{figure}%[h]
 %	 \includegraphics[width=90mm]{mult2.png}
 	\caption{This graph represents the mix of a `typical' load and two spread and aggregate jobs.}
@@ -332,6 +318,21 @@ As can be seen in figure \ref{mixed_delay_matrix} the long delays are due to the
 Our open loop experiments (\S\ref{open}) confirmed the intuition that there is something to be gained from using the provably optimal QCSMA scheduling algorithm over iterative SLIP, although this effect only exhibits itself under high loads.  The open loop simulations also underscored the need for bookkeeping the length of the packets, as opposed to simulating a simpler scenario with equal length packets.  This is because the QCSMA algorithm works best when fewer inputs are competing for the available outputs, which is aided by a large variation in packets lengths.
 
 In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest that although there is a differentiation of performance between QCSMA and SLIP, it seems to play a negligible roll in practice.  This is partly because the congestion levels (i.e. the loads) are adequately regulated using TCP or a similar congestion control mechanism, and partly because of the low level of intercommunication loads observed in real datacenters.  Perhaps as the prevalence of cloud based distributed application increases, this may change.
+
+\section{Schedulers}
+\begin{itemize}
+\item How they work
+\item Design Philosophy
+\item Expected Properties
+\end{itemize}
+
+\section{Experiments}
+\begin{itemize}
+\item Uniform Packet Sizes VS More Realistic Setting
+\item Parameter Choices
+\item Load Graphs
+\item TCP Graphs Choice of Load Patterns
+\end{itemize}
 
 \section{Conclusions}
 \begin{itemize}
@@ -486,9 +487,20 @@ Event next_event()
 }
 \end{verbatim}
 
-Notice that there is no effort to save the events that merge discards.  This is because the stochastic events are generated in a memoryless fashion parametrized by the state (i.e. either occur or do not with the same probability at each time step).  The deterministic events are all a function of the state and can be recalculated from the new state that results after the application of an earlier event.  The ACKs are stored in the event$\_$heap, but could in theory also have their own state variable.  Other deterministic events could also be stored in the event$\_$heap depending on the preference of the coder.
+Notice that there is no effort to save the events that the merge() method discards.  This is because the stochastic events are generated in a memoryless fashion parametrized by the state (i.e. either occur or do not with the same probability at each time step).  The deterministic events are all a function of the state and can be recalculated from the new state that results after the application of an earlier event.  The ACKs are stored in the event$\_$heap, but could in theory also have their own state variable.  Other deterministic events could also be stored in the event$\_$heap depending on the preference of the coder.
 
+So to add a component of a simulator it would be necessary to do the following things:
+\begin{itemize}
+\item Create additional state variable\\
+--- This is to facilitate any bookeeping necessary for events generated by this new component
+\item Update the Event class to include updates to the new state.\\
+--- This consists of two important parts: a modification of variables in the Event class, and an update to the {\it merge()} method, so two events modifying your new state can successfully be merged into one.
+\item The creation of a new function to be placed into the next$\_$event() function.\\
+--- This new function would have the form of a next$\_${\it new$\_$component}$\_$event() and would calculate the next event that would occur given the current state.
+\item Ideally there would also be a control variable allowing for an easy way to remove the component if it is not needed in a simulation.
+\end{itemize}
 
+sofkdos;
 \begin{itemize}
 \item To illustrate what the functions called by next$\_$event() look like we have the example of:
 \item To add a component to the simulator, need to modify:

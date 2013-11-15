@@ -3321,6 +3321,57 @@ void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 	}
 }
 
+
+//generate all traffic originating and leaving from a single source
+void spread_pattern(int master_node,int num_flows)
+{
+	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
+	//high throughput parameters (taken from my previous simulators):
+	double ht_on_2_off = .7;
+	double ht_off_2_on = .3;
+	double ht_gen_rate = 2.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+
+	//delay sensitive parameters:
+	double ds_on_2_off = 1-5.0/(2*row);//.9219;
+	double ds_off_2_on = 1-ds_on_2_off;//.0781;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;///row;//generates packets at rate 1?
+	
+	num_flows=num_flows;
+	for(int f=num_flows;f<max_num_flows;f++)
+	{
+		if(f<row)
+		{
+			flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
+			flow_src[num_flows]=master_node;//fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[num_flows]=ht_on_2_off;//eventually will be something
+			off_2_on[num_flows]=ht_off_2_on;//eventually will be something
+			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			num_flows++;//next one should not overlap
+		}
+		else if(f<2*row)
+		{
+			flow_dest[num_flows]=master_node;//destination is arbitrary
+			flow_src[num_flows]=fmod(f,row);//fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[num_flows]=ht_on_2_off;//eventually will be something
+			off_2_on[num_flows]=ht_off_2_on;//eventually will be something
+			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			num_flows++;//next one should not overlap
+		}
+		else
+		{
+			//do nothing
+		}
+	}
+	flow_dest[0]=master_node;
+	flow_src[0]=master_node;
+	pkt_gen_rate[0]=ds_gen_rate;//generate packets every five hundred clockticks
+	on_2_off[0]=ds_on_2_off;//eventually will be something
+	off_2_on[0]=ds_off_2_on;//eventually will be something
+	gen_state[0]=0;//eventually should startin steady state...*/
+}
+
 //generate high and low priority flows:
 //in particular generate delay_sensitive percent delay sensitive flows
 //and high_throughput high throughput flows
@@ -3475,7 +3526,7 @@ void tcp_load_sim()
 	stat_bucket.initialize_stat(packet_delay_max+4,"max tcp sent",stat_bucket.max,1,max_num_flows,false);
 	//Parameters:
 	sim_par.use_tcp=true;
-	sim_par.use_markov_source=false;
+	sim_par.use_markov_source=true;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
 	int log_num_events = 5;
@@ -3524,6 +3575,7 @@ void tcp_load_sim()
 			
 			//dc_flow_pattern_v2(.2,.1);
 			//dc_flow_pattern(.1*.8/row,.1*.2/row);
+			spread_pattern(1,0);
 			//dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
@@ -3547,7 +3599,7 @@ void tcp_load_sim()
 			stat_bucket.dump_to_file(message.str(),current_time);//write file
 			
 			message.str("");
-			message<<"output/tcp_"<<type_name<<"_flow"<<i<<".csv";
+			message<<"output/tcp_"<<type_name<<"_flow"<<1<<".csv";
 			dump_flows_to_file(message.str());
 			
 			stat_bucket.dump(&cout,current_time);
@@ -3765,7 +3817,7 @@ int main(void)
 		return 0;
 	}
 	srand(145);
-	sim_par.all_pkts_are_same=false;
+	sim_par.all_pkts_are_same=true;
 	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:
