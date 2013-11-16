@@ -2629,6 +2629,8 @@ void init_sim(int log_num_events)
 /*---------------------------- Unit Tests: --------------------------*/
 /*-------------------------------------------------------------------*/
 
+
+
 //markov test:
 //tests to see if markov source works correctly
 void markov_source_test()
@@ -3323,7 +3325,7 @@ void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 
 
 //generate all traffic originating and leaving from a single source
-void spread_pattern(int master_node,int num_flows)
+void spread_pattern(int master_node,int current_num_flows)
 {
 	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
 	//high throughput parameters (taken from my previous simulators):
@@ -3336,46 +3338,62 @@ void spread_pattern(int master_node,int num_flows)
 	double ds_off_2_on = 1-ds_on_2_off;//.0781;
 	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;///row;//generates packets at rate 1?
 	
-	num_flows=num_flows;
-	for(int f=num_flows;f<max_num_flows;f++)
+	num_flows=current_num_flows;
+	for(int f=current_num_flows;f<max_num_flows;f++)
 	{
-		if(f<row)
+		if(f<current_num_flows+row)
 		{
-			flow_dest[num_flows]=fmod(f,row);//destination is arbitrary
-			flow_src[num_flows]=master_node;//fmod(f/row,row);//source is arbitrary
-			pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
-			on_2_off[num_flows]=ht_on_2_off;//eventually will be something
-			off_2_on[num_flows]=ht_off_2_on;//eventually will be something
-			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			flow_dest[f]=fmod(f,row);//destination is arbitrary
+			flow_src[f]=master_node;//fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[f]=ht_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[f]=ht_on_2_off;//eventually will be something
+			off_2_on[f]=ht_off_2_on;//eventually will be something
+			gen_state[f]=0;//eventually should startin steady state...*/
 			num_flows++;//next one should not overlap
 		}
-		else if(f<2*row)
+		else if(f<current_num_flows+2*row)
 		{
-			flow_dest[num_flows]=master_node;//destination is arbitrary
-			flow_src[num_flows]=fmod(f,row);//fmod(f/row,row);//source is arbitrary
-			pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
-			on_2_off[num_flows]=ht_on_2_off;//eventually will be something
-			off_2_on[num_flows]=ht_off_2_on;//eventually will be something
-			gen_state[num_flows]=0;//eventually should startin steady state...*/
+			flow_dest[f]=master_node;//destination is arbitrary
+			flow_src[f]=fmod(f,row);//fmod(f/row,row);//source is arbitrary
+			pkt_gen_rate[f]=ht_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[f]=ht_on_2_off;//eventually will be something
+			off_2_on[f]=ht_off_2_on;//eventually will be something
+			gen_state[f]=0;//eventually should startin steady state...*/
 			num_flows++;//next one should not overlap
-		}
-		else
-		{
-			//do nothing
 		}
 	}
-	flow_dest[0]=master_node;
-	flow_src[0]=master_node;
-	pkt_gen_rate[0]=ds_gen_rate;//generate packets every five hundred clockticks
-	on_2_off[0]=ds_on_2_off;//eventually will be something
-	off_2_on[0]=ds_off_2_on;//eventually will be something
-	gen_state[0]=0;//eventually should startin steady state...*/
+	flow_dest[master_node]=master_node;
+	flow_src[master_node]=master_node;
+	pkt_gen_rate[master_node]=ds_gen_rate;//generate packets every five hundred clockticks
+	on_2_off[master_node]=ds_on_2_off;//eventually will be something
+	off_2_on[master_node]=ds_off_2_on;//eventually will be something
+	gen_state[master_node]=0;//eventually should startin steady state...*/
 }
 
-//generate high and low priority flows:
+//overloads spread_pattern() to make the inputs simple
+void spread_pattern(int master_node)
+{
+	spread_pattern(master_node,num_flows);
+}
+
+//tests if spread pattern looks the way it should.
+void spread_pattern_test()
+{
+	stringstream message;
+	cout<<fmod(row,row)<<"\n";
+	spread_pattern(8,0);
+	spread_pattern(2,num_flows);
+	spread_pattern(0,num_flows);
+	message.str("");
+	message<<"output/tcp_"<<"ideal_qcsma"<<"_flow"<<1<<".csv";
+	dump_flows_to_file(message.str());
+}
+
+
+//generate high and low priority flows, starting with flow first_flow:
 //in particular generate delay_sensitive percent delay sensitive flows
 //and high_throughput high throughput flows
-void dc_flow_pattern(double delay_sensitive,double high_throughput)
+void dc_flow_pattern(double delay_sensitive,double high_throughput,int first_flow)
 {
 	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
 	//high throughput parameters (taken from my previous simulators):
@@ -3390,8 +3408,8 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput)
 	
 	//decision variable:
 	double dec_var=0.0;
-	num_flows=0;
-	for(int f=0;f<max_num_flows;f++)
+	num_flows=first_flow;
+	for(int f=first_flow;f<max_num_flows;f++)
 	{
 		dec_var=((double)rand()/RAND_MAX);//draw value of flow at random
 		if(dec_var<delay_sensitive)//delay sensitive flow
@@ -3426,6 +3444,23 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput)
 	}
 }
 
+//overloads dc_flow_pattern to do always append the flows on top of the existing ones:
+void dc_flow_pattern(double delay_sensitive,double high_throughput)
+{
+	dc_flow_pattern(delay_sensitive,high_throughput,num_flows);
+}
+
+void dc_flow_test()
+{
+	stringstream message;
+	num_flows=0;
+	cout<<num_flows<<"\n";
+	dc_flow_pattern(.8/row,.2/row);
+	message.str("");
+	message<<"output/tcp_"<<"ideal_qcsma"<<"_flow"<<1<<".csv";
+	dump_flows_to_file(message.str());
+
+}
 //assert function much like in JUnit 
 bool assert_true(bool assertion, string error)
 {
@@ -3529,7 +3564,7 @@ void tcp_load_sim()
 	sim_par.use_markov_source=true;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
-	int log_num_events = 5;
+	int log_num_events = 6;
 	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
@@ -3607,6 +3642,8 @@ void tcp_load_sim()
 		}
 	}
 }
+
+
 
 
 //tests whether my functions yield the same results as my main method.
@@ -3801,6 +3838,7 @@ int main(void)
 	int unit_testing=0;
 	if(unit_testing == 1)
 	{
+		dc_flow_test();//spread_pattern_test();
 		streamPass(&cout);
 		ofstream temp_output;
 		temp_output.open("test_File!!.txt");
