@@ -3331,7 +3331,7 @@ void spread_pattern(int master_node,int current_num_flows)
 	//high throughput parameters (taken from my previous simulators):
 	double ht_on_2_off = .7;
 	double ht_off_2_on = .3;
-	double ht_gen_rate = 2.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
 
 	//delay sensitive parameters:
 	double ds_on_2_off = 1-5.0/(2*row);//.9219;
@@ -3399,7 +3399,7 @@ void dc_flow_pattern(double delay_sensitive,double high_throughput,int first_flo
 	//high throughput parameters (taken from my previous simulators):
 	double ht_on_2_off = .7;
 	double ht_off_2_on = .3;
-	double ht_gen_rate = 2.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
 
 	//delay sensitive parameters:
 	double ds_on_2_off = 1-5.0/(2*row);//.9219;
@@ -3460,6 +3460,69 @@ void dc_flow_test()
 	message<<"output/tcp_"<<"ideal_qcsma"<<"_flow"<<1<<".csv";
 	dump_flows_to_file(message.str());
 
+}
+		
+void combo_flow_test()
+{
+	stringstream message;
+	num_flows=0;
+	cout<<num_flows<<"\n";
+	dc_flow_pattern(.8/row,.2/row);
+	spread_pattern(1);
+	spread_pattern(8);
+	message.str("");
+	message<<"output/tcp_"<<"ideal_qcsma"<<"_flow"<<1<<".csv";
+	dump_flows_to_file(message.str());
+}
+
+void all_2_all_pattern(double frac_ht)
+{
+	//Parameters:
+	sched_par.avg_pkt_length =.5*5+.5*120;//62.5;//52.75;//631.5;//150.0;
+
+	//Initialize state:
+	//high throughput parameters (taken from my previous simulators):
+	double ht_on_2_off = .7;
+	double ht_off_2_on = .3;
+	double ht_gen_rate = 1.0/sched_par.avg_pkt_length;//row;//generates packets at rate 1.0?
+
+	//delay sensitive parameters:
+	double ds_on_2_off = 1-5.0/(2*row);//.9219;
+	double ds_off_2_on = 1-ds_on_2_off;//.0781;
+	double ds_gen_rate = 1.0/sched_par.avg_pkt_length;///row;//generates packets at rate 1?
+	
+	num_flows =max_num_flows; 
+	cout<<"num_flows: "<<num_flows<<"\n";
+	for(int f=0;f<num_flows;f++)
+	{
+		flow_dest[f]=fmod(f,row);
+		flow_src[f]=fmod(f/row,row);
+		if(((double)rand()/RAND_MAX)<frac_ht)
+		{
+			on_2_off[f]=ht_on_2_off;//eventually will be something
+			off_2_on[f]=ht_off_2_on;//eventually will be something
+			pkt_gen_rate[f]=ht_gen_rate;//generate packets every five hundred clockticks
+		}
+		else
+		{
+			on_2_off[f]=ds_on_2_off;//eventually will be something
+			off_2_on[f]=ds_off_2_on;//eventually will be something
+			pkt_gen_rate[f]=ds_gen_rate;//generate packets every five hundred clockticks
+		
+		}
+		gen_state[f]=0;//eventually should startin steady state...
+	}
+}
+
+void all_2_all_test()
+{
+	stringstream message;
+	num_flows=0;
+	cout<<num_flows<<"\n";
+	all_2_all_pattern(.5);
+	message.str("");
+	message<<"output/tcp_"<<"ideal_qcsma"<<"_flow"<<1<<".csv";
+	dump_flows_to_file(message.str());
 }
 //assert function much like in JUnit 
 bool assert_true(bool assertion, string error)
@@ -3573,6 +3636,27 @@ void tcp_load_sim()
 	double max_load =.99;
 	double load_array[10]={.1,.3,.5,.6,.7,.75,.8,.85,.9,.95};
 	double load;
+	
+	//determine flow pattern for all schedulers:
+	//dc_flow_pattern(.1*.8,.1*.2,0);
+	//spread_pattern(1);
+	//spread_pattern(8);
+	all_2_all_pattern(.5);
+	int temp_num_flows = num_flows;
+	double temp_pkt_gen[max_num_flows];
+	double temp_on_2_off[max_num_flows];
+	double temp_off_2_on[max_num_flows];
+	double temp_flow_src[max_num_flows];
+	double temp_flow_dest[max_num_flows];
+	//cache flow pattern
+	for(int f=0;f<num_flows;f++)
+	{
+		temp_pkt_gen[f]=pkt_gen_rate[f];
+		temp_on_2_off[f]=on_2_off[f];
+		temp_off_2_on[f]=off_2_on[f];
+		temp_flow_dest[f]=flow_dest[f];
+		temp_flow_src[f]=flow_src[f];
+	}
 
 	for(int type = 1;type<=3;type++)//do different types of simulations
 	{	
@@ -3608,9 +3692,16 @@ void tcp_load_sim()
 			load = load_array[i-1];//.1*i*max_load;
 			init_sim(log_num_events,load);
 			
-			//dc_flow_pattern_v2(.2,.1);
-			//dc_flow_pattern(.1*.8/row,.1*.2/row);
-			spread_pattern(1,0);
+			//restore cached values:
+			num_flows=temp_num_flows;
+			for(int f=0;f<num_flows;f++)
+			{
+				pkt_gen_rate[f]=temp_pkt_gen[f];
+				on_2_off[f]=temp_on_2_off[f];
+				off_2_on[f]=temp_off_2_on[f];
+				flow_dest[f]=temp_flow_dest[f];
+				flow_src[f]=temp_flow_src[f];
+			}
 			//dc_flow_pattern(.8/row,.2/row);
 			//slip_state.cell_length = sched_par.avg_pkt_length;//temp fix'
 			slip_state.header_length = 0;
@@ -3630,7 +3721,7 @@ void tcp_load_sim()
 			stat_bucket.preamble = message.str();//set preamble
 
 			message.str("");//reset name
-			message<<"output/tcp_"<<type_name<<i<<".csv";//set name
+			message<<"output/tcp_"<<type_name<<1<<".csv";//set name
 			stat_bucket.dump_to_file(message.str(),current_time);//write file
 			
 			message.str("");
@@ -3638,6 +3729,7 @@ void tcp_load_sim()
 			dump_flows_to_file(message.str());
 			
 			stat_bucket.dump(&cout,current_time);
+			cout<<"current_time = "<<current_time<<"\n";
 			//stat_bucket.save_to_file_specify_count(message.str(),current_time);//write file
 		}
 	}
@@ -3833,12 +3925,24 @@ void streamPass(ostream* s)
 /*-------------------------------------------------------------------*/
 
 
-int main(void)
+int main(int argc, char* argv[])
 {
+	if(argc>0)
+	{
+		for(int i=0;i<argc;i++)
+		{
+			cout<<argv[i]<<"\n";
+		}
+	}
 	int unit_testing=0;
+	if(argc>1)
+	{
+		unit_testing=1;
+	}
 	if(unit_testing == 1)
 	{
-		dc_flow_test();//spread_pattern_test();
+		all_2_all_test();//combo_flow_test();
+		//dc_flow_test();//spread_pattern_test();
 		streamPass(&cout);
 		ofstream temp_output;
 		temp_output.open("test_File!!.txt");
@@ -3855,7 +3959,7 @@ int main(void)
 		return 0;
 	}
 	srand(145);
-	sim_par.all_pkts_are_same=true;
+	sim_par.all_pkts_are_same=false;
 	tcp_load_sim();//iid_load_sim();//
 	
 	//Print stats:

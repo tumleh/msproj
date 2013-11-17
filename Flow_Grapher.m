@@ -2,6 +2,7 @@
 %Plots delays experienced by different loads
 clear all;
 close all;
+prefix = './output/'
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file
@@ -12,7 +13,7 @@ load = zeros(1,last_file-first_file+1);
 ht_on_2_off = .7;
 for sim_type = 1:3
     for file = first_file:last_file
-        input = csvread(strcat('./output/',file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
+        input = csvread(strcat(prefix,file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
         index = 1-first_file+file;
 %         label = ['flow queue','switch queue','packet delays']
         [w,h] = size(input);

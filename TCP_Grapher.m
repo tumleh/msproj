@@ -2,6 +2,7 @@
 %Plots delays experienced by different loads
 clear all;
 close all;
+prefix='./output/';%'./newestGraphs/spread1_us/';%
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file
@@ -12,9 +13,13 @@ load = zeros(1,last_file-first_file+1);
 frac_keep = .95;
 max_range =0;
 ht_on_2_off = .7;
+sbs=figure;%side by side
+sbs_h=3;
+sbs_w=1;
+closeGraphs = 1;
 for sim_type = 1:3
     for file = first_file:last_file
-        input = csvread(strcat('./output/',file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
+        input = csvread(strcat(prefix,file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
         index = 1-first_file+file;
 %         label = ['flow queue','switch queue','packet delays']
         %[w,h] = size(input);
@@ -115,12 +120,16 @@ for sim_type = 1:3
                     data_matrix = data_matrix(data_matrix~=0);
                 end
                 
-                length(data_matrix)
-                data(1) = min(min(data_matrix));
-                data(3) = max(max(data_matrix));
-                data(2) = sum(sum(data_matrix))/sum(sum(data_matrix~=0));
-                data = data./avg_pkt_length;%rescale to allow the graphs to make sense.
-                data = data*10;%because we have to adjust for round trip time
+                if(length(data_matrix)==0)
+                    data=[0,0,0];
+                else
+                    data(1) = min(min(data_matrix));
+                    data(3) = max(max(data_matrix));
+                    data(2) = sum(sum(data_matrix))/sum(sum(data_matrix~=0));
+                    data = data./avg_pkt_length;%rescale to allow the graphs to make sense.
+                    data = data*10;%because we have to adjust for round trip time
+                end
+                    
                 if(max_range<data(3))
                     max_range=data(3);
                 end
@@ -156,35 +165,57 @@ for sim_type = 1:3
             end
         end
 
-        subplot(1,2,1);%figure;
         rate_range = rate_matrix(:,2) - rate_matrix(:,1);
-        %rate_range=rate_range/avg_pkt_length;%rescale.
+            %rate_range=rate_range/avg_pkt_length;%rescale.
         rate_diff = [rate_matrix(:,1) rate_range];
-        %rate_diff=rate_diff/avg_pkt_length;%rescale
-        
-        eh = errorbar(mean(rate_matrix'), rate_range/2);
-        set(eh,'linestyle','none','LineWidth',3);
-        set(gca,'ylim',[0 max(rate_matrix(1,2),rate_matrix(2,2))*1.1]);
-        set(gca,'xtick',[1 2],'xticklabel',{'type 1','type 2'});
-        hold;
-        eh = errorbar(rate_mean, [0;0],'r');
-        set(eh,'linestyle','none','LineWidth',3);
-        title(file_name(sim_type,:));
-        ylabel('delay in average packet lengths');
+            %rate_diff=rate_diff/avg_pkt_length;%rescale
+        for g=1:2
+            if(g==1)
+                subplot(1,2,1);%figure;
+            else
+               figure(sbs);
+               subplot(sbs_h,sbs_w,sim_type);
+            end
+            
+
+            eh = errorbar(mean(rate_matrix'), rate_range/2);
+            set(eh,'linestyle','none','LineWidth',3);
+            set(gca,'ylim',[0 max(rate_matrix(1,2),rate_matrix(2,2))*1.1]);
+            set(gca,'xtick',[1 2],'xticklabel',{'type 1','type 2'});
+            hold;
+            eh = errorbar(rate_mean, [0;0],'r');
+            set(eh,'linestyle','none','LineWidth',3);
+            title(file_name(sim_type,:));
+            ylabel('delay in average packet lengths');
+        end
         
     end
 end
 figure;subplot(2,1,1);delay_iq=sort(delay_iq(delay_iq~=0))/avg_pkt_length;stem(delay_iq);title('delay dist iq');
 subplot(2,1,2);stem(delay_iq(1:24));title('restricted delay dist iq');
+if(closeGraphs==1)
+    close;
+end;
 figure(iq);subplot(1,2,2);title('ideal qcsma');subplot(1,2,1);title('ideal qcsma'); set(gca,'ylim',[0 max_range*1.1]);
 
 figure;subplot(2,1,1);delay_sq=sort(delay_sq(delay_sq~=0))/avg_pkt_length;stem(delay_sq);title('delay dist sq');
 subplot(2,1,2);stem(delay_sq(1:24));title('restricted delay dist sq');
-
+if(closeGraphs==1)
+    close;
+end;
 figure(sq);subplot(1,2,2);title('time slotted qcsma');subplot(1,2,1);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
 
 figure;subplot(2,1,1);delay_is=sort(delay_is(delay_is~=0))/avg_pkt_length;stem(delay_is);title('delay dist is');
 subplot(2,1,2);stem(delay_is(1:24));title('restricted delay dist is');
-
+if(closeGraphs==1)
+    close;
+end;
 figure(is);subplot(1,2,2);title('iterative slip');subplot(1,2,1);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
 
+if(closeGraphs==1)
+    close(is,iq,sq);
+end;
+
+figure(sbs);subplot(sbs_h,sbs_w,1);title('ideal qcsma');set(gca,'ylim',[0 max_range*1.1]);
+figure(sbs);subplot(sbs_h,sbs_w,2);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
+figure(sbs);subplot(sbs_h,sbs_w,3);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
