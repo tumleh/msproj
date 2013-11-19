@@ -2,7 +2,7 @@
 %Plots delays experienced by different loads
 clear all;
 close all;
-prefix = './output/'
+prefix = './newestGraphs/typ_spread_vs/'
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file

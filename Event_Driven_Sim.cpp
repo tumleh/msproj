@@ -3345,9 +3345,9 @@ void spread_pattern(int master_node,int current_num_flows)
 		{
 			flow_dest[f]=fmod(f,row);//destination is arbitrary
 			flow_src[f]=master_node;//fmod(f/row,row);//source is arbitrary
-			pkt_gen_rate[f]=ht_gen_rate;//generate packets every five hundred clockticks
-			on_2_off[f]=ht_on_2_off;//eventually will be something
-			off_2_on[f]=ht_off_2_on;//eventually will be something
+			pkt_gen_rate[f]=ds_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[f]=ds_on_2_off;//eventually will be something
+			off_2_on[f]=ds_off_2_on;//eventually will be something
 			gen_state[f]=0;//eventually should startin steady state...*/
 			num_flows++;//next one should not overlap
 		}
@@ -3355,9 +3355,9 @@ void spread_pattern(int master_node,int current_num_flows)
 		{
 			flow_dest[f]=master_node;//destination is arbitrary
 			flow_src[f]=fmod(f,row);//fmod(f/row,row);//source is arbitrary
-			pkt_gen_rate[f]=ht_gen_rate;//generate packets every five hundred clockticks
-			on_2_off[f]=ht_on_2_off;//eventually will be something
-			off_2_on[f]=ht_off_2_on;//eventually will be something
+			pkt_gen_rate[f]=ds_gen_rate;//generate packets every five hundred clockticks
+			on_2_off[f]=ds_on_2_off;//eventually will be something
+			off_2_on[f]=ds_off_2_on;//eventually will be something
 			gen_state[f]=0;//eventually should startin steady state...*/
 			num_flows++;//next one should not overlap
 		}
@@ -3627,7 +3627,7 @@ void tcp_load_sim()
 	sim_par.use_markov_source=true;
 	sim_par.sched_type = 1;
 	sched_par.max_slip_its=6;
-	int log_num_events = 6;
+	int log_num_events = 5;
 	int num_events =pow(10,log_num_events);//1000000;
 
 	//run trials:
@@ -3639,9 +3639,9 @@ void tcp_load_sim()
 	
 	//determine flow pattern for all schedulers:
 	//dc_flow_pattern(.1*.8,.1*.2,0);
-	//spread_pattern(1);
+	spread_pattern(1,0);
 	//spread_pattern(8);
-	all_2_all_pattern(.5);
+	//all_2_all_pattern(.5);
 	int temp_num_flows = num_flows;
 	double temp_pkt_gen[max_num_flows];
 	double temp_on_2_off[max_num_flows];

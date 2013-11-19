@@ -56,7 +56,7 @@ Computer networks have made their way to the core of our modern lifestyles.  Alm
 
 What is the best way to measure the efficacy of a router?  Two obvious metrics are the throughput and delay characteristics of the switches.  Traditionally routers have been evaluated based on their throughput performance.  This is an excellent metric as in the internet routing paths are subject to too much uncertainty to hope that optimizing the delays in a single switch to have a large influence on the roundtrip time of your packets.
 
-On the other hand, in a datacenter setting the paths are no longer uncertain, as the whole network is controlled by a single entity, so delay again becomes a metric that is worth considering.  The other reason that delay optimization ) is a good idea is that the distributed nature of the applications run on datacenters is often very delay sensitive.  For instance in a google data center any search query must be returned within 300 milliseconds? (CITE SOMEONE) or the work done must be discarded.
+On the other hand, in a datacenter setting the paths are no longer uncertain, as the whole network is controlled by a single entity, so delay again becomes a metric that is worth considering.  The other reason that delay optimization ) is a good idea is that the distributed nature of the applications run on datacenters is often very delay sensitive.  User facing applications often ned to return results before a given time threshold or the work must be discarded.%For instance in a google data center any search query must be returned within 300 milliseconds? (CITE SOMEONE) or the work done must be discarded.
 
 Although delay is clearly a very important metric to consider in these settings, it is not as readily analyzed as throughput, which makes it more difficult to give a reliable a design recommendation.  In order to model the effects of different switch schedulers we have built a network simulator using assumptions meant to mimic a datacenter environment.  We have compared the performance of two relevant scheduling architectures in the hopes of demonstrating that provable throughput optimality can lead to an improvement in delay performance when switches are subjected to high loads.
 
@@ -174,12 +174,8 @@ In order to test whether this poor performance was due to the higher collision r
 	\label{variable_size}
 \end{figure}
 
-%\section{Closed Loop (TCP) Simulations} \label{closed}
-%\begin{figure}%[h]
-%	% \includegraphics[width=90mm]{typical_flows.png}
-%	\caption{This graph represents the flow matrix of a `typical' datacenter load.  Where $80\%$ of the flows (type 2) generate a low volume of traffic and are sensitive to delays.  The other $20\%$ of flows (type 1) generate a large volume of traffic and are require a high throughput but not necessarily low delays.  The color in the $s,d$th position signifies the type of flow going from input $s$ to output $d$.  Flows of type $0$ do not generate any packets.} 	
-%	\label{typical_flows}
-%\end{figure}
+\section{Closed Loop (TCP) Simulations} \label{closed}
+
 
 Switches are not generally subjected to an unmodulated stream of packet flows.  Rather, the flows between applications are generally regulated via TCP or some other congestion/flow control mechanism.  This results in a different environment under which the differences highlighted by the open loop simulations might only play a negligible role.  To explore this idea, we have added a layer to our simulator which models TCP.  The only difference between our version of TCP and the traditional TCP is that we use Explicit Congestion Notification instead of packet dropping to respond to congestion.  Aside from simplifying the structure of the simulator, this choice reduces the long timeout delays, (or the need to fine tune the estimate of the roundtrip time to avoid this), which result whenever the routers buffers become overwhelmed.  The ECN bit is set with probability $p_{\text{ecn}}$ if the switch queues exceed some threshold $T_{\text{ecn}}$.  The TCP window is then reduced after it receives an ACK with the ECN bit set.  This is only one of the many proposed changes to adapt TCP to a datacenter setting.
 
@@ -211,21 +207,10 @@ We present 4 simulations in which we simulated different flow patterns to our sc
 \end{itemize}
 
 \subsubsection{All to all (core switch)}
-An all to all pattern can be seen in figure \ref{all_to_all}.  The type of each flow (from $s$ to $d$) was drawn from an iid distribution that yielded type 1 with probability $1/2$ and type 2 with probability $1/2$.  This flow pattern was meant to mimic a possible load on a core switch, which has to aggregate the traffic from across the network.  Results suggest that the performance of the switches was very similar.  The throughput for all the switches is about the same, and in terms of delay the difference is not significant. Ideal QCSMA performs mildly better than the other switches.  See figure \ref{all_to_all_delay} for a comparison.
+An all to all pattern can be seen in figure \ref{all_to_all_flows}.  The type of each flow (from $s$ to $d$) was drawn from an iid distribution that yielded type 1 with probability $1/2$ and type 2 with probability $1/2$.  This flow pattern was meant to mimic a possible load on a core switch, which has to aggregate the traffic from across the network.  Results suggest that the performance of the switches was very similar.  The throughput for all the switches is about the same, and in terms of delay the difference is not significant. Ideal QCSMA performs mildly better than the other switches.  See figure \ref{all_to_all} for a comparison.
 
-Notably the gain of the unimplementable ideal QCSMA is negligible compared to that of SLIP, which does not have the same strong performance guarantees on throughput.  This will be a recurring theme in our findings.  Our implementation of a practical QCSMA, is comparable to SLIP but does perform slightly worse than SLIP.
+Notably the gain of the unimplementable ideal QCSMA performs by far the best.  Time slotted QCSMA in this scenario also outperforms SLIP, having both a lower average, and lower extremes than SLIP.  While this does match our intuition that the throughput optimal scheme should perform better, it is not nearly as spectacular a result as our open loop simulations would have lead us to expect.
 
-%\begin{figure}%[h]
-%	% \includegraphics[width=90mm]{all_to_all.png}
-%	\caption{This flow matrix is meant to model the traffic in a core switch.  Every input is connected to every output and the traffic carried is mixed between type 1 and type 2 flows.}
-%	\label{all_to_all}
-%\end{figure}
-%
-%\begin{figure}%[h]
-%	% \includegraphics[width=90mm]{all_to_all_delay.eps}
-%	\caption{The per flow delay spread for the different schedulers under an all to all flow pattern.  Only the best 95\% of flows are shown to remove outliers.  The blue bar represents the spread between the best and worst flows and the red line represents the average value.  Clockwise from the top left we have timer simulating QCSMA, SLIP, and Ideal QCSMA.}
-%	\label{all_to_all_delay}
-%\end{figure}
 
 \begin{table}[ht] \caption{TCP Parameters} 
 \centering 
@@ -244,11 +229,18 @@ Notably the gain of the unimplementable ideal QCSMA is negligible compared to th
 
 
 \subsubsection{Spread and Aggregate (MapReduce)}
-One of the most famous (if not most popular) applications in modern datacenters is certainly MapReduce.  The communication pattern of MapReduce often involves a large transfer of data to and from a single node between the different phases of computation.  In order to mimic this type of operation we developed a spread and aggregate flow pattern in which a given server sends data to all other servers using low throughput highly delay sensitive flows (type 2), which in turn are returned to the server.   An example in which the source of the pattern is on input 1 is shown in figure \ref{spreadagg}
+One of the most famous (if not most popular) applications in modern datacenters is certainly MapReduce.  The communication pattern of MapReduce often involves a large transfer of data to and from a single node between the different phases of computation.  In order to mimic this type of operation we developed a spread and aggregate flow pattern in which a given server sends data to all other servers using high throughput delay insensitve flows (type 1), since the volume of data exchanged between the master and worker servers is often quite large.  An example in which the source of the pattern is on input 1 is shown in figure \ref{spreadagg}
+ %low throughput highly delay sensitive flows (type 2), which in turn are returned to the server.   An example in which the source of the pattern is on input 1 is shown in figure \ref{spreadagg}
 
 This does not accurately model a MapReduce job for several reasons.  The biggest departure from a typical MapReduce job is that our type 2 flows do not have similar synchronization or burstiness properties due to the similar completion times of computations in a real MapReduce job.  Furthermore the large delays imposed by the artificial 10 hop distance for the acks is responsible for another difference in our model.  Still we hope that it suffices to give an impression of how a spread and aggregate application might behave.
 
-The performance for the different schedulers is with equal length packets and variable length packets is comparable as seen in figures \ref{vs_spreadagg} and \ref{us_spreadagg}.
+The performance for the different schedulers can be seen in figure \ref{vs_spreadagg}.  Interestingly enough, in this scenario the worst performing flow of SLIP does much better than the extreme flows of both the QCSMA schedulers.  Despite this higher variation, both QCSMA schedulers perform better on average than the SLIP scheduler.  The performance difference is not significant in the case of the practical time slotted QCSMA, while the ideal implementation of QCSMA does about 4 times better.  Depending on how close the practical QCSMA implementations can be pushed towards the ideal scheduler, this might be significant.
+
+\begin{figure}%[h]
+	 \includegraphics[width=90mm]{all2allflows.png}
+	\caption{This graph shows the flows experienced by a core router with all to all traffic the red flows are type 2 while the blue flows are type 1.}
+	\label{all_to_all_flows}
+\end{figure}
 
 \begin{figure}%[h]
 	 \includegraphics[width=90mm]{all_2_all.eps}
@@ -258,8 +250,28 @@ The performance for the different schedulers is with equal length packets and va
 
 
 \begin{figure}%[h]
+	 \includegraphics[width=90mm]{spread.png}
+	\caption{This graph shows a typical spread aggregate pattern.  In this case the blue flows indicate the absence of a flow..}
+	\label{spreadagg}
+\end{figure}
+
+
+\begin{figure}%[h]
+	 \includegraphics[width=90mm]{vs_spread.eps}
+	\caption{This graph shows the delay spread of type 1 flows under a simulated spread and aggregate pattern.  Note the difference in average performance (as represented by the red dot).}
+	\label{vs_spreadagg}
+\end{figure}
+
+
+\begin{figure}%[h]
+	 \includegraphics[width=90mm]{typ_vs_flows.png}
+	\caption{This graph represents the flow matrix of a `typical' datacenter load.  Where $80\%$ of the flows (type 2) generate a low volume of traffic and are sensitive to delays.  The other $20\%$ of flows (type 1) generate a large volume of traffic and are require a high throughput but not necessarily low delays.  The color in the $s,d$th position signifies the type of flow going from input $s$ to output $d$.  Flows of type $0$ do not generate any packets.} 	
+	\label{typical_flows}
+\end{figure}
+
+\begin{figure}%[h]
 	 \includegraphics[width=90mm]{typ_vs.eps}
-	\caption{This graph shows the delays experienced by a typical set of datacenter flows with variable packet sizes.}
+	\caption{This graph shows the delays experienced by a typical set of datacenter flows.}
 	\label{typ_vs}
 \end{figure}
 
@@ -269,11 +281,6 @@ The performance for the different schedulers is with equal length packets and va
 	\label{typ_spread_vs}
 \end{figure}
 
-\begin{figure}%[h]
-	 \includegraphics[width=90mm]{vs_spread.eps}
-	\caption{This graph shows the delay spread of the flows under a simulated spread and aggregate pattern the packet lengths in this simulation are presumed to be variable.}
-	\label{vs_spreadagg}
-\end{figure}
 
 %\begin{figure}%[h]
 %	 \includegraphics[width=90mm]{us_spread.eps}
@@ -285,7 +292,7 @@ The performance for the different schedulers is with equal length packets and va
 The statistics in \cite{Benson} and \cite{Kandula} suggest that it is normal to have a relatively low utilization of the networks in modern datacenters.  In their findings they observed that only $10\%$ of the servers communicate.  They observed that $80\%$ of the flows had very short durations, while $20\%$ flows were really long lived and responsible for the majority of transmitted bits.  To model the bimodal behavior they observed we choose to use the two types of flows mentioned above.  A sample corresponding flow pattern for our simulations can be seen in figure \ref{typical_flows}.
 
 
-In our simulations in this scenario all the crossbar based switches once again exhibited comparable performance (see figure \ref{typ_delays}).
+In our simulations for this scenario (see figure \ref{typ_vs}) QCSMA on average performs better than SLIP as usual, but also in the extremes.  The overall delays are also much less than in the other scenarios (an order of magnitude less in fact).  This is most likely due to the lower rate of competition between flows in this scenario.  This is one of the best flow patterns for both the time slotted QCSMA, which can be seen by the fact that it almost matches the performs of it's unimplementable ideal version.
 
 %
 %\begin{figure}%[h]
@@ -295,15 +302,18 @@ In our simulations in this scenario all the crossbar based switches once again e
 %\end{figure}
 
 \subsubsection{`Typical' Flows and spread and aggregate}
-Finally to explore switch performance in a datacenter setting that supports both  `typical' datacenter loads and some MapReduce like jobs, we subjected the switch to a superposition of the datacenter load and two spread and aggregate loads on servers 1 and 11 as seen in figure \ref{typ_mult2}.  The performance of the crossbar based switches is again comparable (see figure \ref{typ_mult2_delays}).
+Finally to explore switch performance in a datacenter setting that supports both  `typical' datacenter loads and some MapReduce like jobs, we subjected the switch to a superposition of the datacenter load and two spread and aggregate loads on servers 2 and 9 as seen in figure \ref{typ_spread_flows}.  The performance of the crossbar based switches is again comparable (see figure \ref{typ_spread_vs}).
 
-As can be seen in figure \ref{mixed_delay_matrix} the long delays are due to the spread and aggregate flows for all the switches.  Note that since it is the spread and aggregate flows (all type 2 flows) that suffer, figure \ref{typ_mult2_delays} shows type 2 as being particularly slow.  This is only true because the spread and aggregate flows are heavily delayed as opposed to the spread and aggregate flows slowing down other type 2 flows
-%\begin{figure}%[h]
-%%	 \includegraphics[width=90mm]{mult2.png}
-%	\caption{This graph represents the mix of a `typical' load and two spread and aggregate jobs.}
-%	\label{typ_mult2}
-%\end{figure}
-%
+%As can be seen in figure \ref{mixed_delay_matrix} 
+The long delays seen here are due to the spread and aggregate flows for all the switches.  Note that since it is the spread and aggregate flows (all type 1 flows) that suffer, figure \ref{typ_spread_vs} shows type 1 as being particularly slow.  This is only true because the spread and aggregate flows are heavily delayed as opposed to the spread and aggregate flows slowing down other type 1 flows.  While there are some extreme outliers of type 2, the average performance is comparable to the typical data center performance.
+
+As was to be expected, SLIP once again performed slightly worse, but not significantly.
+\begin{figure}%[h]
+	 \includegraphics[width=90mm]{typ_spread_flows.png}
+	\caption{This graph represents the mix of a `typical' load and two spread and aggregate jobs.}
+	\label{typ_spread_flows}
+\end{figure}
+
 %\begin{figure}%[h]
 %%	 \includegraphics[width=90mm]{mult2_flow_delays.eps}
 %	\caption{This graph represents the performance under a mix of spread and aggregate (on servers 1 and 11) and typical flows.}
@@ -319,9 +329,11 @@ As can be seen in figure \ref{mixed_delay_matrix} the long delays are due to the
 
 \section{Conclusions}
 
-Our open loop experiments (\S\ref{open}) confirmed the intuition that there is something to be gained from using the provably optimal QCSMA scheduling algorithm over iterative SLIP, although this effect only exhibits itself under high loads.  The open loop simulations also underscored the need for bookkeeping the length of the packets, as opposed to simulating a simpler scenario with equal length packets.  This is because the QCSMA algorithm works best when fewer inputs are competing for the available outputs, which is aided by a large variation in packets lengths.
+Our open loop experiments (\S\ref{open}) confirmed our intuition that there is something to be gained from using the provably optimal QCSMA scheduling algorithm over iterative SLIP, although this effect has the most pronounced effect under highly loaded open loop control scenarios.  The open loop simulations also underscored the need for bookkeeping the length of the packets, as opposed to simulating a simpler scenario with equal length packets.  This is because the QCSMA algorithm works best when fewer inputs are competing for the available outputs, which is aided by a large variation in packets lengths.
 
-In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest that although there is a differentiation of performance between QCSMA and SLIP, it seems to play a negligible roll in practice.  This is partly because the congestion levels (i.e. the loads) are adequately regulated using TCP or a similar congestion control mechanism, and partly because of the low level of intercommunication loads observed in real datacenters.  Perhaps as the prevalence of cloud based distributed application increases, this may change.
+In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest that although there is a differentiation of performance between QCSMA and SLIP, it does not seem to play a large enough role to be significant in practice.  This is partly because the congestion levels (i.e. the loads) are adequately regulated using TCP or a similar congestion control mechanism, and partly because of the low level of intercommunication loads observed in real datacenters.  Perhaps as the prevalence of cloud based distributed application increases, and more efficient flow regulation mechanisms are invented, this may change.
+
+
 
 %% \begin{itemize}
 %%\item Metric is Delay (makes sense in DataCenter Environments)
@@ -433,7 +445,7 @@ In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest
 \label{bib}
 \bibliography{MSThesis}{}
 \bibliographystyle{plain} 
- 
+ \newpage
  %\appendix
   \appendices 
  \section{Simulation Design} \label{code_design}
