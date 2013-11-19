@@ -2,7 +2,7 @@
 %Plots delays experienced by different loads
 clear all;
 close all;
-prefix='./output/';%'./newestGraphs/spread1_us/';%
+prefix='./newestGraphs/spread1_vs/';%'./output/';%
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file
@@ -14,9 +14,9 @@ frac_keep = .95;
 max_range =0;
 ht_on_2_off = .7;
 sbs=figure;%side by side
-sbs_h=3;
-sbs_w=1;
-closeGraphs = 0;
+sbs_h=1;
+sbs_w=3;
+closeGraphs = 1;
 for sim_type = 1:3
     for file = first_file:last_file
         input = csvread(strcat(prefix,file_name(sim_type,:),'_flow',int2str(file),'.csv'));%'logs/sim.csv');
@@ -73,7 +73,7 @@ for sim_type = 1:3
         %Sim_Grapher.m
         %clear all;
         %close all;
-        input = csvread(strcat('./output/',file_name(sim_type,:),'1.csv'));%'logs/sim.csv');
+        input = csvread(strcat(prefix,file_name(sim_type,:),'1.csv'));%'logs/sim.csv');
         %file_name = ['flow queue','switch queue','packet delays']
         [w,h] = size(input);
         %imagesc(input.*(input<90).*(input>=0));colorbar;

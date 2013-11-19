@@ -1,11 +1,11 @@
-\documentclass{IEEEtran}%[conference]{IEEEtran}%\documentclass[10pt]{article}%{article}{report}{letter}{book}{proc}{slides}%
+\documentclass[11pt]{article}%{IEEEtran}%[conference]{IEEEtran}%\documentclass[10pt]{article}%{article}{report}{letter}{book}{proc}{slides}%
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{amsthm}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage{wasysym}
-\usepackage{skull}
+%\usepackage{skull}
 
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue}
 
@@ -28,7 +28,7 @@
 %\IEEEauthorblockA{Department of Electrical Engineering and Computer Science\\
 %University of California, Berkeley\\
 %\{shadams, jnchang\}@eecs.berkeley.edu}
-\author{\IEEEauthorblockN{S. H. Adams, L. Huang, A. Parekh, and J. Walrand \\}}
+\author{S. H. Adams, L. Huang, A. Parekh, and J. Walrand }%\author{\IEEEauthorblockN{S. H. Adams, L. Huang, A. Parekh, and J. Walrand \\}}
 %\IEEEauthorblockA{Department of Electrical Engineering and Computer Science\\
 %University of California, Berkeley\\
 %\{shadams,jnchang\}@eecs.berkeley.edu}}
@@ -48,26 +48,25 @@
 \maketitle
 
 {\abstract
- We compare the delays experienced by packet flows when transmitted using different scheduling algorithms across a crossbar switch.  The two scheduling algorithms we consider are iterative Slip \cite{McKeown} and QCSMA \cite{Libin}.  We first compare them under the assumptions that all packets have the same length, and then under the assumption that the half the packets have the maximum allowable length and half have the minimum allowable length.  Our findings suggest that the variation has a non-negligible effect on throughput vs delay results, but doesn't have a large qualitative effect on TCP performance.  While QCSMA shows an improved performance over SLIP in open loop simulations, the effect does not translate to better closed loop performance.
-}
+ We compare the delays experienced by packet flows when transmitted using different scheduling algorithms across a crossbar switch.  The two scheduling algorithms we consider are iterative SLIP \cite{McKeown} and QCSMA \cite{Libin}.  We first compare them under the assumptions that all packets have the same length, and then under the assumption that the half the packets have the maximum allowable length and half have the minimum allowable length.  Our findings suggest that the variation in packet length has a non-negligible effect on throughput vs delay results.  Under varying packet lengths and under TCP flow control, QCSMA derived schedulers seem to do marginally better than SLIP.}
 
 \section{Introduction}
-Computer networks have made their way to the core of our modern lifestyles.  Almost any information can (and often must) be found on the internet.  Many of the services people use on a daily basis rely on distributed processing of requests housed in enormous datacenters scattered across the country and the world.  All these networks require good routing technologies to be possible.
+Computer networks have made their way to the core of our modern lifestyles.  Almost any information can (and often must) be found on the internet.  Many of the services people use on a daily basis rely on distributed processing of requests housed in enormous datacenters scattered across the country and the world.  All these networks require good routing technologies to be used effectively.
 
-What is the best way to measure the efficacy of a router?  Two obvious metrics are the throughput and delay characteristics of the switches.  Traditionally routers have been evaluated based on their throughput performance.  This is an excellent metric as in the internet routing paths are subject to too much uncertainty to hope that optimizing the delays in a single switch to have a large influence on the roundtrip time of your packets.
+What is the best way to measure the efficacy of a router?  Two obvious metrics are the throughput and delay characteristics of the switches.  Traditionally routers have been evaluated based on their throughput performance.  This is an excellent metric as, in the internet routing, paths are subject to too much uncertainty to hope that optimizing the delays in a single switch to have a large influence on the roundtrip time of your packets.
 
-On the other hand, in a datacenter setting the paths are no longer uncertain, as the whole network is controlled by a single entity, so delay again becomes a metric that is worth considering.  The other reason that delay optimization ) is a good idea is that the distributed nature of the applications run on datacenters is often very delay sensitive.  User facing applications often ned to return results before a given time threshold or the work must be discarded.%For instance in a google data center any search query must be returned within 300 milliseconds? (CITE SOMEONE) or the work done must be discarded.
+On the other hand, in a datacenter setting, paths are no longer uncertain, as the whole network is controlled by a single entity.  This allows delay to become a metric worth considering.  The other reason that delay optimization is a metric worth pursuing is because the distributed applications run on datacenters are often very delay sensitive.  User facing applications often ned to return results before a given time threshold or the work must be discarded.%For instance in a google data center any search query must be returned within 300 milliseconds? (CITE SOMEONE) or the work done must be discarded.
 
-Although delay is clearly a very important metric to consider in these settings, it is not as readily analyzed as throughput, which makes it more difficult to give a reliable a design recommendation.  In order to model the effects of different switch schedulers we have built a network simulator using assumptions meant to mimic a datacenter environment.  We have compared the performance of two relevant scheduling architectures in the hopes of demonstrating that provable throughput optimality can lead to an improvement in delay performance when switches are subjected to high loads.
+Although delay is clearly a very important metric to consider in these settings, it is not as readily analyzed as throughput, which makes it more difficult to give a reliable a design recommendation.  In order to model the effects of different switch schedulers we have built a network simulator using assumptions meant to mimic a datacenter environment.  We have compared the performance of two relevant scheduling architectures in the hopes of demonstrating that schedulers that are provably throughput optimal have better delay performance when switches are subjected to high loads.
 
 \section{Switch Schedulers}
-We consider two different scheduling algorithms used to route packets across a crossbar based switch.  Iterative Slip -- a practical scheme design by Nick McKeown to solve the issues of head of line delay \cite{McKeown}, and QCSMA -- a probabilistic scheduling policy developed and optimized to be full throughput by Libin Jiang \cite{Libin}.
+We consider two different scheduling algorithms used to route packets across a crossbar based switch.  Iterative SLIP -- a practical scheme design by Nick McKeown to solve the issues of head of line delay \cite{McKeown}, and QCSMA -- a probabilistic scheduling policy developed and optimized to be full throughput by Libin Jiang \cite{Libin}.
 
-Our assumptions on the hardware for both our switches is the same, the only differentiating component is the scheduler which determines which set of packets will be transmitted at each transmission opportunity.  A good scheduler can support an arbitrarily high load, and provides a low delay per packet.  In practice the scheduler will incur some overhead because it takes time to generate a feasible transmission schedule.  The schedulers use an (ideally) small number of contention slots at the beginning of each packet transmission opportunity during which the inputs and the outputs can exchange information to determine the best schedule.  The communication mechanism between the inputs and outputs can be quite powerful in practice.  We assume that each input is connected to each output by a bidirectional one bit line. This allows each output and input to exchange 1 bit in each contention slot.  For the Slip based scheduler the packets are broken into smaller cells so that the schedules can be generated for a given set of cells, after which they are transmitted over the crossbar, and then the process is repeated.  The QCSMA based algorithms do not synchronize scheduling times, rather it is constantly generating new schedules across the unused portion of the crossbar.
+Our assumptions on the hardware for both our switches is the same, the only differentiating component is the scheduler which determines which set of packets will be transmitted at each transmission opportunity.  A good scheduler can support an arbitrarily high load, and provides a low delay per packet.  In practice the scheduler will incur some overhead because it takes time to generate a feasible transmission schedule.  The schedulers use an (ideally) small number of contention slots at the beginning of each packet transmission opportunity during which the inputs and the outputs can exchange information to determine the best schedule.  The communication mechanism between the inputs and outputs can be quite powerful in practice.  We assume that each input is connected to each output by a bidirectional one bit line. This allows each output and input to exchange 1 bit in each contention slot.  For the SLIP based scheduler the packets are broken into smaller cells so that the schedules can be generated for a given set of cells, after which they are transmitted over the crossbar, and then the process is repeated.  The QCSMA based algorithms do not synchronize scheduling times, rather it is constantly generating new schedules across the unused portion of the crossbar.
 
 \subsection{SLIP}
 
-SLIP is a very intuitive and practical scheme invented by Nick Mckeown \cite{McKeown}.  It has been implemented in real systems and yields extremely good performance.  It is difficult to prove anything about this scheduler, but simulations show that it performs very well in many key loading regimes.\\
+Iterative SLIP is a very intuitive and practical scheme invented by Nick Mckeown \cite{McKeown}.  It has been implemented in real systems and yields extremely good performance.  It is difficult to prove anything about this scheduler, but simulations show that it performs very well in many key loading regimes.\\
 
 {\it How it works:}
 
@@ -80,7 +79,7 @@ The motivation behind SLIP was to develop a simple protocol that avoids the use 
 \item 3) Every input schedules itself for the output that admitted it giving a round robin priority from the last output it transmitted through ($d'$).  i.e. first scheduling an admission from $d'+1$ then $d'+2$ etc.\\
 \end{itemize}
 
-After all the last contention slot the scheduled input and outputs transmit a single packet and update their state, after which the cycle continues.  Note that since the time it takes to transmit a packet depends on its length, there will be a lot of idle time in the system if packet length varies significantly.  In practice this is addressed by breaking packets up into small equal sized cells so scheduling can be done on a cell by cell basis as opposed to a packet by packet basis.  In our simulations we consider both the case of all packets being the same size, and the case in which there is a bimodal distribution of packet sizes.  The overhead necessary to split packets into smaller cells involves adding a header to each cell, and using a larger number of contention slots since they will be needed to schedule per cell size, not packet size.  In our simulations we assumed both of these contributed only a negligible amount to the total delay.
+After the last contention slot, the scheduled input and outputs transmit a single packet and update their state.  Once the packets have been successfully transmitted, the cycle continues.  Note that since the time it takes to transmit a packet depends on its length, there will be a lot of idle time in the system if packet length varies significantly.  In practice this is addressed by breaking packets up into small equal sized cells so scheduling can be done on a cell by cell basis as opposed to a packet by packet basis.  In our simulations we consider both the case of all packets being the same size, and the case in which there is a bimodal distribution of packet sizes.  The overhead necessary to split packets into smaller cells involves adding a header to each cell, and using a larger number of contention slots since they will be needed to schedule per cell size, not packet size.  In our simulations we assumed both of these contributed only a negligible amount to the total delay.
 
 \subsection{Ideal QCSMA}
 
@@ -88,7 +87,7 @@ After all the last contention slot the scheduled input and outputs transmit a si
 
 QCSMA is a throughput optimal scheme inspired by Carrier Sense Multiple Access protocols developed for scheduling nodes in a wireless environment.  Because it was designed for wireless environments it assumes a much more restricted feedback model than that used by SLIP, which may be one of the reasons that the practical implementations perform worse than expected.  The only feedback traditional QCSMA assumes to be available takes the form of a broadcast to all inputs or outputs. This differs markedly from the crossbar where it is possible to provide individual feedback to each input and outputs.%, which we will revisit later.
 
-Still ideal QCSMA, is guaranteed to be full throughput.  Unfortunately the delay performance of priority flows will depend on the backlog of the queues which they enter, which penalizes low rate flows.  The ideal QCSMA takes place in continuous time and so is not constrained by the number of contention slots allotted to the scheduler, and thus represents a performance bound for the other schedulers.\\
+Still ideal QCSMA, is guaranteed to be full throughput.  Unfortunately the delay performance of priority flows will depend on the backlog of the queues which they enter, which penalizes low rate flows.  The ideal QCSMA takes place in continuous time: so it can run arbitrarily fast, as well as being immune to collisions, and thus represents a performance bound for the other schedulers.\\
 
 {\it How it works:}
 
@@ -101,13 +100,13 @@ At the beginning of each transmission opportunity, each input $s$ generates an e
 \item When all timers expire transmit packets.\\
 \end{itemize}
 
-Note the probability of a collision (two or more inputs requesting access to the same output simultaneously) is 0 when the timer values $X_{s,d}$ are continuous.  In simulations we assume that the timer resolution period takes no time, so this scheduling policy can act as an idealized performance benchmark.  This is impossible to implement, so it is necessary to develop a time slotted version that works in a finite number of discrete of contention slots.  Because we assume uniform packet sizes, and synchronized scheduling, all inputs compete for all outputs at the beginning of each transmission opportunity.  This may negatively impact observed performance.% although this is unimplementable.  Also note that QCSMA is inspired by Carrier Sense Multiple Access protocols which do not take advantage of the more fine grained feedback available in the switch context, and leveraged by SLIP.
+Note the probability of a collision (two or more inputs requesting access to the same output simultaneously) is 0 when the timer values $X_{s,d}$ are continuous.  In simulations we assume that the timer resolution period takes no time, so this scheduling policy can act as an idealized performance benchmark.  This is impossible to implement, so it is necessary to develop a time slotted version that works in a finite number of discrete of contention slots.% although this is unimplementable.  Also note that QCSMA is inspired by Carrier Sense Multiple Access protocols which do not take advantage of the more fine grained feedback available in the switch context, and leveraged by SLIP.
 
 \subsection{Slotted QCSMA} \label{naive_qcsma}
 
 %Approximation of Ideal QCSMA  -->  Hope for similar performance -- Needed to be tweaked to 
 
-In a real system it is not possible to implement continuous time counters, so it is necessary to approximate the continuous time scheduler with a discrete time system.  The scheduling requests for a given output from a given source are made whenever both that output and source are not transmitting any packets and so is not limited to a fixed number of contention slots like that of Slip.  (We can think of it as in every time slot, performing QCSMA on the portion of the crossbar that is idle.)  Slotted QCSMA approximated exponential timers by geometric random variables determining in which time slot the transmission requests should be made.
+In a real system it is not possible to implement continuous time counters, so it is necessary to approximate the continuous time scheduler with a discrete time system.  The scheduling requests for a given output from a given source are made whenever both that output and source are not transmitting any packets and so is not limited to a fixed number of contention slots like that of SLIP.  (We can think of it as in every time slot, performing QCSMA on the portion of the crossbar that is idle.)  Slotted QCSMA approximated exponential timers by geometric random variables determining in which time slot the transmission requests should be made.
 
 If each time slot is assumed to have duration $\beta$, then the probability that an exponential timer of rate $Q_{s,d}^\alpha$ expires within a time slot is given by:
 \begin{align}
@@ -136,7 +135,7 @@ The performance of this algorithm is expected be quite bad when the packets all 
 
 \section{Simulator}
 
-To compare the delay performance of the different schedulers we built an event driven simulators in C++.  All the graphs were plotted for $32 \times 32$ switches (i.e. 32 inputs and 32 outputs).  Simulation time is discrete with the minimum time step assumed to be the length of one of the bit transmissions of one of the schedulers.   The packet lengths are given in lengths of these time steps.  Because modern crossbars are transmit packets in parallel we assume that it takes 5 clock ticks to transmit a 64 byte packet, and 120 clock ticks to transmit a 1500 byte packet.  For all the Slip simulations we assumed there were $6$ contention slots used to generate the crossbar schedules, but that these calculations were pipelined in such a way as to make the net scheduling was negligible compared to the packet transmission time.  Simulation inputs were flow patterns passing through the switch, which were identical for all switches. %The switch operation was simulated for $10^6$ time steps, in order to reach the steady state switch behavior%during a given experiment in order to avoid  make the comparison between different scheduling policies and module types without worrying about inconsistencies in flow statistics.   
+To compare the delay performance of the different schedulers we built an event driven simulators in C++.  All the graphs were plotted for $32 \times 32$ switches (i.e. 32 inputs and 32 outputs).  Simulation time is discrete with the minimum time step assumed to be the length of one of the bit transmissions of one of the schedulers.   The packet lengths are given in lengths of these time steps.  Because modern crossbars are transmit packets in parallel we assume that it takes 5 clock ticks to transmit a 64 byte packet, and 120 clock ticks to transmit a 1500 byte packet.  For all the SLIP simulations we assumed there were $6$ contention slots used to generate the crossbar schedules, but that these calculations were pipelined in such a way as to make the net scheduling was negligible compared to the packet transmission time.  Simulation inputs were flow patterns passing through the switch, which were identical for all switches. %The switch operation was simulated for $10^6$ time steps, in order to reach the steady state switch behavior%during a given experiment in order to avoid  make the comparison between different scheduling policies and module types without worrying about inconsistencies in flow statistics.   
 
  The simulations fell into two categories: an open loop version meant to measure switch throughput, and a closed loop version meant to mimic TCP operation over the switch.  For more details on the simulator design please see appendix \ref{code_design}.%We go into more depth in subsequent sections.
  
@@ -158,19 +157,19 @@ We explored the capacity of the different schedulers by injecting a stream of pa
    \label{qcsma_parameters} 
 \end{table}
 
-In figure \ref{one_size}, all the packets were generated to have one size.  In this scenario Slip performs very well, on par with ideal QCSMA.  Slotted QCSMA incurs the largest delays.
+In figure \ref{one_size}, all the packets were generated to have one size.  In this scenario SLIP performs very well, on par with ideal QCSMA.  Slotted QCSMA incurs the largest delays.
 
-In order to test whether this poor performance was due to the higher collision rate caused by all the packet transmissions beginning and ending almost simultaneously, we performed a second experiment in which we had a bimodal packet distribution over packet lengths.  In this alternate scenario (depicted in figure \ref{variable_size}) we generated packets with an iid probability of being the maximum size (1500 bytes) with probability $1/2$ and the minimum size (64 bytes) with probability $1/2$.  The rationale behind this distribution was to observe that data packets in TCP flows are generally transferring chunks of some larger file (so may as well send the maximum bytes).  For every data packet which makes it through the system, there is a control message, such as an ACK that do not need to be very large so can be modeled as being the minimum data packets.  As shown in figure \ref{variable_size} all the schedulers perform comparably until we reach higher loads.  Above loads of $60\%$ the switch capacity, Slip starts to perform considerably worse than slotted QCSMA.  Interestingly the performance of the slotted QCSMA follows the performance of the ideal version more closely than in the single packet length scenario.
+In order to test whether this poor performance was due to the higher collision rate caused by all the packet transmissions beginning and ending almost simultaneously, we performed a second experiment in which we had a bimodal packet distribution over packet lengths.  In this alternate scenario (depicted in figure \ref{variable_size}) we generated packets with an iid probability of being the maximum size (1500 bytes) with probability $1/2$ and the minimum size (64 bytes) with probability $1/2$.  The rationale behind this distribution was to observe that data packets in TCP flows are generally transferring chunks of some larger file (so may as well send the maximum bytes).  For every data packet which makes it through the system, there is a control message, such as an ACK that do not need to be very large so can be modeled as being the minimum data packets.  As shown in figure \ref{variable_size} all the schedulers perform comparably until we reach higher loads.  Above loads of $60\%$ the switch capacity, SLIP starts to perform considerably worse than slotted QCSMA.  Interestingly the performance of the slotted QCSMA follows the performance of the ideal version more closely than in the single packet length scenario.
 
 \begin{figure}%[h]
 	 \includegraphics[width=90mm]{us_load.eps}
-	\caption{Delay vs throughput graphs for loads in a scenario in which all packet have the same length.  Slip performs comparably to the ideal QCSMA scheduler, and outperforms the realistic implementation of QCSMA.  The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
+	\caption{Delay vs throughput graphs for loads in a scenario in which all packet have the same length.  SLIP performs comparably to the ideal QCSMA scheduler, and outperforms the realistic implementation of QCSMA.  The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
 	\label{one_size}
 \end{figure}
 
 \begin{figure}%[h]
 	 \includegraphics[width=90mm]{vs_load.eps}
-	 \caption{Delay vs throughput graphs for loads in a scenario in which every packet has a probability of $1/2$ of being the minimum size and $1/2$ of being the maximum size. With the variable sized packets Slip no longer outperforms the practical version of QCSMA.  QCSMA still performs similarly to the single length scenario.  (Note that the x axis in this graph is different from that in figure \ref{one_size}.) The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
+	 \caption{Delay vs throughput graphs for loads in a scenario in which every packet has a probability of $1/2$ of being the minimum size and $1/2$ of being the maximum size. With the variable sized packets SLIP no longer outperforms the practical version of QCSMA.  QCSMA still performs similarly to the single length scenario.  (Note that the x axis in this graph is different from that in figure \ref{one_size}.) The parameters for the QCSMA based schedulers are taken from table \ref{qcsma_parameters}.} 	
 	\label{variable_size}
 \end{figure}
 
@@ -213,7 +212,7 @@ Notably the gain of the unimplementable ideal QCSMA performs by far the best.  T
 
 
 \begin{table}[ht] \caption{TCP Parameters} 
-\centering 
+\centering
 \begin{tabular}{c c c}
  \hline\hline 
  Switch & $T_{\text{ecn}}$ & $p_{\text{ecn}}$ \\
@@ -221,8 +220,7 @@ Notably the gain of the unimplementable ideal QCSMA performs by far the best.  T
  SLIP&10&.5 \\
   QCSMA&12&.5  \\
    ideal  QCSMA&10&.9  \\
-   %DCSMA&31&25  \\
-  [1ex] \hline 
+  [1.0ex] \hline 
   \end{tabular}
    \label{ecn_table} 
 \end{table}
@@ -232,7 +230,7 @@ Notably the gain of the unimplementable ideal QCSMA performs by far the best.  T
 One of the most famous (if not most popular) applications in modern datacenters is certainly MapReduce.  The communication pattern of MapReduce often involves a large transfer of data to and from a single node between the different phases of computation.  In order to mimic this type of operation we developed a spread and aggregate flow pattern in which a given server sends data to all other servers using high throughput delay insensitve flows (type 1), since the volume of data exchanged between the master and worker servers is often quite large.  An example in which the source of the pattern is on input 1 is shown in figure \ref{spreadagg}
  %low throughput highly delay sensitive flows (type 2), which in turn are returned to the server.   An example in which the source of the pattern is on input 1 is shown in figure \ref{spreadagg}
 
-This does not accurately model a MapReduce job for several reasons.  The biggest departure from a typical MapReduce job is that our type 2 flows do not have similar synchronization or burstiness properties due to the similar completion times of computations in a real MapReduce job.  Furthermore the large delays imposed by the artificial 10 hop distance for the acks is responsible for another difference in our model.  Still we hope that it suffices to give an impression of how a spread and aggregate application might behave.
+This does not accurately model a MapReduce job for several reasons.  The biggest departure from a typical MapReduce job is that our type 1 flows do not have similar synchronization or burstiness properties due to the similar completion times of computations in a real MapReduce job.  Furthermore the large delays imposed by the artificial 10 hop distance for the acks is responsible for another difference in our model.  Still we hope that it suffices to give an impression of how a spread and aggregate application might behave.
 
 The performance for the different schedulers can be seen in figure \ref{vs_spreadagg}.  Interestingly enough, in this scenario the worst performing flow of SLIP does much better than the extreme flows of both the QCSMA schedulers.  Despite this higher variation, both QCSMA schedulers perform better on average than the SLIP scheduler.  The performance difference is not significant in the case of the practical time slotted QCSMA, while the ideal implementation of QCSMA does about 4 times better.  Depending on how close the practical QCSMA implementations can be pushed towards the ideal scheduler, this might be significant.
 
@@ -243,7 +241,7 @@ The performance for the different schedulers can be seen in figure \ref{vs_sprea
 \end{figure}
 
 \begin{figure}%[h]
-	 \includegraphics[width=90mm]{all_2_all.eps}
+	 \includegraphics[width=\textwidth]{all_2_all.eps}
 	\caption{This graph shows the delays experienced by a core router with all to all traffic.}
 	\label{all_to_all}
 \end{figure}
@@ -257,7 +255,7 @@ The performance for the different schedulers can be seen in figure \ref{vs_sprea
 
 
 \begin{figure}%[h]
-	 \includegraphics[width=90mm]{vs_spread.eps}
+	 \includegraphics[width=\textwidth]{vs_spread.eps}
 	\caption{This graph shows the delay spread of type 1 flows under a simulated spread and aggregate pattern.  Note the difference in average performance (as represented by the red dot).}
 	\label{vs_spreadagg}
 \end{figure}
@@ -269,14 +267,15 @@ The performance for the different schedulers can be seen in figure \ref{vs_sprea
 	\label{typical_flows}
 \end{figure}
 
+
 \begin{figure}%[h]
-	 \includegraphics[width=90mm]{typ_vs.eps}
+	 \includegraphics[width=\textwidth]{typ_vs.eps}
 	\caption{This graph shows the delays experienced by a typical set of datacenter flows.}
 	\label{typ_vs}
 \end{figure}
 
 \begin{figure}%[h]
-	 \includegraphics[width=90mm]{typ_spread_vs.eps}
+	 \includegraphics[width=\textwidth]{typ_spread_vs.eps}
 	\caption{This graph shows the delays experienced by a typical set of datacenter flows with variable packet sizes and two spread aggregate jobs.}
 	\label{typ_spread_vs}
 \end{figure}
@@ -348,7 +347,7 @@ In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest
 %%\item In Data centers have enough control over other switches that delay becomes a good metric.
 %%\item Evolution of Routers -- SLIP killed head of Line delays but can't really be analyzed
 %%\item QCSMA -- solves NP hard problem, but may cause large delays?
-%%\item Question:  Should the optimality of QCSMA not show up in some performance gains over slip?  (In particular wrt delay?)
+%%\item Question:  Should the optimality of QCSMA not show up in some performance gains over SLIP?  (In particular wrt delay?)
 %%\end{itemize}
 %%
 %%\section{Schedulers}
@@ -369,7 +368,7 @@ In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest
 %%\section{Conclusions}
 %%\begin{itemize}
 %%\item Differences in Packet Sizes Cannot be Neglected
-%%\item QCSMA may perform better than slip when looking at delay optimization
+%%\item QCSMA may perform better than SLIP when looking at delay optimization
 %%\item TCP in datacenters...
 %%\end{itemize}
 %%
@@ -446,8 +445,8 @@ In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest
 \bibliography{MSThesis}{}
 \bibliographystyle{plain} 
  \newpage
- %\appendix
-  \appendices 
+\appendix
+%  \appendices 
  \section{Simulation Design} \label{code_design}
  
  Because the simulation tracked events on two very different time scales (that of packet transmissions and that of schedulers clock ticks) we chose to use an event driven simulator.  This means that we had a mechanism for calculating the next event (and time at which it occurred) given the current state of the system, instead of calculating the new state at each time step.
@@ -538,7 +537,11 @@ So to add a component of a simulator it would be necessary to do the following t
 %%\item switch statements 
 %%\end{itemize}
 \subsection{Auxiliary structures}
-In addition to the simulation mechanisms there are a few code structures meant to improve the ease of use.  Data is collected by entering it into an object of the Data$\_$Collector class which provides a convenient dump$\_$to$\_$file() method, which dumps the data into a csv file.  Once all the data is recorded in a file, you can easily graph the data using a Matlab script.  
+In addition to the simulation mechanisms there are a few code structures meant to improve the ease of use.  Data is collected by entering it into an object of the Data$\_$Collector class which provides a convenient dump$\_$to$\_$file() method, which dumps the data into a csv file.  Once all the data is recorded in a file, you can easily graph the data using a Matlab script.\\
+
+Because of the size of the simulator, there are many sets of variables floating around which may make it difficult to follow what is relevant to what.  In order to combat this, the simulator has collected the different variables parametrizing the different components in structs such as the TCP$\_$State or the Scheduler$\_$Parameters struct, defined at the beginning of the code so that it is easy to follow what values need to be defined in order to make the simulator function.\\
+
+Another issue with understanding the simulator code is that it contains components that can be added or removed (such as the TCP layer or the current choice of scheduler).  What simulator components are currently active is parametrized by the Simulation$\_$Parameters struct, and at the relevant places in the code, there is a switch statement or a an if statement which switches between the relevant components.  Searching for the variables collected in Simulation\_Parameters should quickly reveal any places that have been modified or need to modified by the particular component.
 %%\begin{itemize}
 %%\item variable collections and switch statements
 %%\item Data Collector Class
