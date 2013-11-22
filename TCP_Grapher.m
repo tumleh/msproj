@@ -2,7 +2,7 @@
 %Plots delays experienced by different loads
 clear all;
 close all;
-prefix='./newestGraphs/spread1_vs/';%'./output/';%
+prefix='./newestGraphs/all_to_all/';%'./output/';%
 file_name = char('tcp_ideal_qcsma','tcp_slotted_qcsma','tcp_slip');%char('ideal_qcsma','slotted_qcsma','slip');%('flow');%
 first_file = 1;%first file
 last_file = 1;%last file
@@ -177,16 +177,17 @@ for sim_type = 1:3
                subplot(sbs_h,sbs_w,sim_type);
             end
             
-
+            line_width = 15;
             eh = errorbar(mean(rate_matrix'), rate_range/2);
-            set(eh,'linestyle','none','LineWidth',3);
+            set(eh,'linestyle','none','LineWidth',line_width);
             set(gca,'ylim',[0 max(rate_matrix(1,2),rate_matrix(2,2))*1.1]);
-            set(gca,'xtick',[1 2],'xticklabel',{'type 1','type 2'});
+            set(gca,'xlim',[0 3]);
+            set(gca,'xtick',[1 2],'xticklabel',{'1','2'});
             hold;
             eh = errorbar(rate_mean, [0;0],'r');
-            set(eh,'linestyle','none','LineWidth',3);
+            set(eh,'linestyle','none','LineWidth',line_width);
             title(file_name(sim_type,:));
-            ylabel('delay in average packet lengths');
+            %ylabel('delay in average packet lengths');
         end
         
     end
@@ -216,6 +217,7 @@ if(closeGraphs==1)
     close(is,iq,sq);
 end;
 
-figure(sbs);subplot(sbs_h,sbs_w,1);title('ideal qcsma');set(gca,'ylim',[0 max_range*1.1]);
+figure(sbs);subplot(sbs_h,sbs_w,1);title('ideal qcsma');set(gca,'ylim',[0 max_range*1.1]);ylabel('delay in pkt lengths');
 figure(sbs);subplot(sbs_h,sbs_w,2);title('time slotted qcsma');set(gca,'ylim',[0 max_range*1.1]);
 figure(sbs);subplot(sbs_h,sbs_w,3);title('iterative slip');set(gca,'ylim',[0 max_range*1.1]);
+fig=gcf;set(findall(fig,'-property','FontSize'),'FontSize',25);set(sbs, 'Position', [0, 1000, 1500, 600]);
