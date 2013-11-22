@@ -463,7 +463,7 @@ In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest
  
  Because the simulation tracked events on two very different time scales (that of packet transmissions and that of schedulers clock ticks) we chose to use an event driven simulator.  This means that we had a mechanism for calculating the next event (and time at which it occurred) given the current state of the system, instead of calculating the new state at each time step.
  
- \subsection{Main components}
+ \subsection{Main components} \label{maincomp}
  To accommodate this simulation model, the heart of the code was split into essentially two logical pieces: State variables, and state transitions.  Logically, the heart of the simulator looks like this:
  \begin{verbatim}
  while(num_events<tot_num_events)
@@ -562,62 +562,104 @@ Another issue with understanding the simulator code is that it contains componen
 
 \subsection{Function Descriptions}
 \subsubsection{Data\_Collector}
+This class was designed to make data collection intuitive and easy.  Essentially when you initialize a data collector object you can index the type of statistic you would like to collect and add labels and types of data.  Then at the appropriate parts of the code you can easily add the value to the appropriate statistic.  Finally the Data Collector comes with a convenient dump to file function which allows the statistics collected be written to a csv file which is easy to load into a Matlab script.
 \begin{itemize}
-\item initialization
-\item record
-\item dump
-\item separate dump\_flows\_to\_file
+\item {\bf Initialization:}\\
+To initialize a data collection object, call its constructor with the number of statistics types to be collected.  The function for specifying a specific stat is a little more complicated:
+\begin{verbatim}
+	initialize_stat(int stat_index,string name,int type,
+	                      int num_rows,int num_cols,bool user_defines_count)
+\end{verbatim}
+This functions allows you to specify the index by which to call the stat, specify a name, a type (average, max, or variance), the number of rows and columns that the stat will have, and whether or not the user will specify the divisor for dumping to a file.  If the count is not specified by the user, the data collected (if it is not a max) is divided by the number of data added.
+\item {\bf Record}\\
+Once the stats have been initialized a new piece of data can be added easily using the function:
+\begin{verbatim}
+       enter_data(int stat_index,int stat_row,int stat_col,int new_data)
+\end{verbatim}
+Where all you need to specify is the index of the stat to be modified, and which row and column is affected as well as the new piece of data to be recorded.  If the count is specified by the user as the final time of the simulation you often want to multiply the relevant data by the time elapsed since the last time the data was recorded.
+\item {\bf Output}\\
+Printing the data to an output file uses the method:
+\begin{verbatim}
+        dump_to_file(string file_name,int specified_count)
+\end{verbatim}
+  In this case the specified\_count is applied to all the statistics which had the user\_defines\_count flag set to true.  The output is then printed in the format of having each stat printed consecutively:
+  \begin{verbatim}
+        row, col
+        stat[0][0],stat[0][1],stat[0][2],....stat[0][col-1]
+        .
+        .
+        .
+        stat[row-1][0] ,..., stat[row-1][col-1]
+\end{verbatim}
+followed by the next stat.
 \end{itemize}
 
 \subsubsection{Control and State Variables}
+The simulation state and control variables are contained in the following structs:
 \begin{itemize}
-\item flow variables
-\item slip state
-\item tcp state
-\item sched par
-\item sim par
-\item switch statements
+\item Slip\_State slip\_state
+\item TCP\_State tcp\_state
+\item Scheduler\_Parameters sched\_par
+\item Simulation\_Parameters sim\_par
+%\item flow variables\item switch statements
 \end{itemize}
+The variables contained in these structs are mostly self explanatory.  If they are not a part of an active state, but rather a parameter the variables are limited to being used to activate `switch' statements or `if' statements at the appropriate places in the code, so understanding their effects should be relatively simple.
 
-\subsubsection{Simulations}
+\subsubsection{Simulation methods}
+Different simulations can now be run by changing the appropriate parameters and resetting the state to zero.  The basic functions for doing this are the following:
 \begin{itemize}
-\item init\_sim
-\item reset\_sim
-\item run\_sim
-\item tcp\_load\_sim
-\item iid\_load\_sim
+\item init\_sim\\
+Sets all the initial parameters including the hardwired choice of scheduler parameters.
+\item reset\_sim\\
+Leaves all the parameters alone but resets the state.  (e.g. empties the event queues, and flushes any packets from the system.)
+\item run\_sim\\
+This function runs the simulation forward for the specified number of events using the set of parameters set by other functions.  In particular enters the `while' loop described in \ref{maincomp}.
+\item tcp\_load\_sim\\
+Uses a combination of init\_sim and reset\_sim as well as some more specialized flow patterns and specific adjustments to parameters to run the tcp simulations.
+\item iid\_load\_sim\\
+Similar to tcp\_load\_sim this function runs the open loop tests.
 \end{itemize}
 
 
 \subsubsection{Event Sim Mechanics}
+These functions are needed to update the various states and handle events properly:
 \begin{itemize}
-\item update\_state
-\item pkt\_length
-\item next\_event
-\item geo\_exp()
-\item next...?
+\item update\_state\\
+See \ref{maincomp}.
+\item next\_event\\
+Also see \ref{maincomp}.
+\item geo\_exp\\
+This function generates an outcome corresponding to the first expirations of a set of geometric random variables.  Many of the other functions are built on this.
 \end{itemize}
 
 \subsubsection{Flow patterns}
+This is just the set of functions that generate the different flow patterns with the exception of separate dump\_flows\_to\_file which allows you to easily print out the flows to a csv file in a similar format to the Data\_Collector object:
 \begin{itemize}
+\item dump\_flows\_to\_file
 \item dc\_flow\_pattern
 \item spread\_pattern
 \item all\_2\_all\_pattern
 \end{itemize}
 
 \subsubsection{Scheduler Machinery}
+Of course the heart of the scheduler needs to simulate the scheduling algorithms:
 \begin{itemize}
 \item idle\_c\_bar
 \item basic\_slotted\_qcsma
 \item islip
-\item pkt\_to\_cells
+\item pkt\_to\_cells\\
+A helper function to break large packets into smaller packets when slip is used.
 \end{itemize}
 
 \subsubsection{TCP Methods}
+Finally TCP has a collection of helper functions to properly update the state when TCP is being used: 
 \begin{itemize}
-\item tcp update
-\item should tcp send
-\item gen\_ack
+\item tcp\_update\\
+Update the tcp\_state struct, which keeps track of the TCP window, the packets sent, round trip time estimates etc.
+\item should\_tcp\_send\\
+Determines whether the packet should be sent to the switch base on the TCP window and the currently sent packets.
+\item gen\_ack\\
+Generates an ack and places it on the event queue whenever a packet exits the system.
 \end{itemize}
 
 
