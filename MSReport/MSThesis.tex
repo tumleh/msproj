@@ -560,4 +560,69 @@ Another issue with understanding the simulator code is that it contains componen
 %%\item Matlab
 %%\end{itemize}
 
+\subsection{Function Descriptions}
+\subsubsection{Data\_Collector}
+\begin{itemize}
+\item initialization
+\item record
+\item dump
+\item separate dump\_flows\_to\_file
+\end{itemize}
+
+\subsubsection{Control and State Variables}
+\begin{itemize}
+\item flow variables
+\item slip state
+\item tcp state
+\item sched par
+\item sim par
+\item switch statements
+\end{itemize}
+
+\subsubsection{Simulations}
+\begin{itemize}
+\item init\_sim
+\item reset\_sim
+\item run\_sim
+\item tcp\_load\_sim
+\item iid\_load\_sim
+\end{itemize}
+
+
+\subsubsection{Event Sim Mechanics}
+\begin{itemize}
+\item update\_state
+\item pkt\_length
+\item next\_event
+\item geo\_exp()
+\item next...?
+\end{itemize}
+
+\subsubsection{Flow patterns}
+\begin{itemize}
+\item dc\_flow\_pattern
+\item spread\_pattern
+\item all\_2\_all\_pattern
+\end{itemize}
+
+\subsubsection{Scheduler Machinery}
+\begin{itemize}
+\item idle\_c\_bar
+\item basic\_slotted\_qcsma
+\item islip
+\item pkt\_to\_cells
+\end{itemize}
+
+\subsubsection{TCP Methods}
+\begin{itemize}
+\item tcp update
+\item should tcp send
+\item gen\_ack
+\end{itemize}
+
+
+
+
+
+
 \end{document}

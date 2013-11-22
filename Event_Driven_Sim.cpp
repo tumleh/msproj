@@ -454,253 +454,7 @@ class Data_Collector
 		}
 		
 	}
-	
-	//due to an error in bookkeeping use save_to_file_with_count() method below
-	// Dump stored to statistics to the specified output file:
-	void save_to_file(string file_name)
-	{	
-		ofstream output;	
-		output.open(file_name.c_str());//need c string to open a file.
-		for(int this_stat=0;this_stat<num_stats;this_stat++)
-		{
-			output<<stat_name[this_stat]<<":\n";
-			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
-			{
-				if(count[this_stat][stat_index]!=0)
-				{
-					switch(stat_type[this_stat])
-					{
-						case 0://avg
-							output<< ((double) stat[this_stat][stat_index]/count[this_stat][stat_index]);
-							break;
-						case 1://max
-							output<<stat[this_stat][stat_index];
-							break;
-						case 2://variance:
-							output<< ((double) stat[this_stat][stat_index]/count[this_stat][stat_index]);
-							break;
-						default://something is wrong
-							output<<"type error";
-					}
-				}
-				else
-				{
-					output<<0;
-				}
-				if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
-				{
-					if((stat_index+1)%row_length[this_stat]==0)
-					{
-						output<<"\n";
-					}
-					else if(stat_index<count[this_stat].capacity()-1)
-					{
-						output<<" , ";
-					}
-				}
-				else if(stat_index<count[this_stat].capacity()-1)
-				{
-					output<<" , ";
-				}
-			}
-			if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
-			{
-				output<<"\n";
-			}
-		}
-		output.close();
-	}
-
-	//hack to fix mistake in bookkeeping should be cleaned up later but not a priority at the moment.
-	void save_to_file_with_count(string file_name,int real_count)
-	{	
-		ofstream output;	
-		output.open(file_name.c_str());//need c string to open a file.
-		for(int this_stat=0;this_stat<num_stats;this_stat++)
-		{
-			output<<stat_name[this_stat]<<":\n";
-			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
-			{
-				if(real_count!=0)
-				{
-					switch(stat_type[this_stat])
-					{
-						case 0://avg
-							output<< ((double) stat[this_stat][stat_index]/real_count);
-							break;
-						case 1://max
-							output<<stat[this_stat][stat_index];
-							break;
-						case 2://variance:
-							output<< ((double) stat[this_stat][stat_index]/real_count);
-							break;
-						default://something is wrong
-							output<<"type error";
-					}
-				}
-				else
-				{
-					output<<0;
-				}
-				if(row_length[this_stat]>0&&row_length[this_stat]<=stat[this_stat].capacity())
-				{
-					if((stat_index+1)%row_length[this_stat]==0)
-					{
-						output<<"\n";
-					}
-					else if(stat_index<stat[this_stat].capacity()-1)
-					{
-						output<<" , ";
-					}
-				}
-				else if(stat_index<stat[this_stat].capacity()-1)
-				{
-					output<<" , ";
-				}
-			}
-			if(row_length[this_stat]<=0||row_length[this_stat]>stat[this_stat].capacity())
-			{
-				output<<"\n";
-			}
-		}
-		output.close();
-	}
-
-	
-
-	//a further hack because I missed the idea of a variety of different kinds of statistics. 
-	//Will need to fix this. Probbly doable if I change the data collection philosophy.
-	// Dump stored to statistics to the specified output file:
-	void save_to_file_specify_count_till(string file_name,int specified_count,int first_unspecified_count)
-	{	
-		int temp_count=0;
-		ofstream output;	
-		output.open(file_name.c_str());//need c string to open a file.
-		for(int this_stat=0;this_stat<num_stats;this_stat++)
-		{
-			//commented out for now//output<<stat_name[this_stat]<<":\n";
-			output<<stat[this_stat].capacity()/row_length[this_stat]<<","<<row_length[this_stat]<<"\n";
-			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
-			{
-				if(this_stat<first_unspecified_count)
-				{
-					temp_count=specified_count;
-				}
-				else
-				{
-					temp_count=count[this_stat][stat_index];
-				}
-				if(temp_count!=0)
-				{
-					switch(stat_type[this_stat])
-					{
-						case 0://avg
-							output<< ((double) stat[this_stat][stat_index]/temp_count);
-							break;
-						case 1://max
-							output<<stat[this_stat][stat_index];
-							break;
-						case 2://variance:
-							output<< ((double) stat[this_stat][stat_index]/temp_count);
-							break;
-						default://something is wrong
-							output<<"type error";
-					}
-				}
-				else
-				{
-					output<<0;
-				}
-				if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
-				{
-					if((stat_index+1)%row_length[this_stat]==0)
-					{
-						output<<"\n";
-					}
-					else if(stat_index<count[this_stat].capacity()-1)
-					{
-						output<<" , ";
-					}
-				}
-				else if(stat_index<count[this_stat].capacity()-1)
-				{
-					output<<" , ";
-				}
-			}
-			if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
-			{
-				output<<"\n";
-			}
-		}
-		output.close();
-	}
-
-	//Hopefully a save_to_file function that makes sense, pass in a file_name
-	//and a specified count, for all statistics that have that flag ticked.
-	void save_to_file_specify_count(string file_name,int specified_count)
-	{
-		int temp_count=0;
-		ofstream output;	
-		output.open(file_name.c_str());//need c string to open a file.
-		for(int this_stat=0;this_stat<num_stats;this_stat++)
-		{
-			//commented out for now//output<<stat_name[this_stat]<<":\n";
-			output<<stat[this_stat].capacity()/row_length[this_stat]<<","<<row_length[this_stat]<<"\n";
-			for(int stat_index=0;stat_index<stat[this_stat].capacity();stat_index++)
-			{
-				if(count_is_user_defined[this_stat])
-				{
-					temp_count=specified_count;
-				}
-				else
-				{
-					temp_count=count[this_stat][stat_index];
-				}
-				if(temp_count!=0)
-				{
-					switch(stat_type[this_stat])
-					{
-						case 0://avg
-							output<< ((double) stat[this_stat][stat_index]/temp_count);
-							break;
-						case 1://max
-							output<<stat[this_stat][stat_index];
-							break;
-						case 2://variance:
-							output<< ((double) stat[this_stat][stat_index]/temp_count);
-							break;
-						default://something is wrong
-							output<<"type error";
-					}
-				}
-				else
-				{
-					output<<0;
-				}
-				if(row_length[this_stat]>0&&row_length[this_stat]<=count[this_stat].capacity())
-				{
-					if((stat_index+1)%row_length[this_stat]==0)
-					{
-						output<<"\n";
-					}
-					else if(stat_index<count[this_stat].capacity()-1)
-					{
-						output<<" , ";
-					}
-				}
-				else if(stat_index<count[this_stat].capacity()-1)
-				{
-					output<<" , ";
-				}
-			}
-			if(row_length[this_stat]<=0||row_length[this_stat]>count[this_stat].capacity())
-			{
-				output<<"\n";
-			}
-		}
-		output.close();
-	}
-	
+		
 	//ultimate version of this method (I hope).  Let's you use the specified count for the variables you flagged, 
 	//furthermore you it prints out the preamble you've chosen specified in the future with whatever message you like before dumping the data.  (specify the preamble with data_collector_instance.preamble = some_string
 	void dump_to_file(string file_name,int specified_count)
@@ -3265,7 +3019,7 @@ void qcsma_parameter_search()
 void tcp_testing()
 {
 }
-
+ /*
 void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 {
 	sched_par.avg_pkt_length=.5*5+.5*120;//maybe wrong to put this here...?
@@ -3298,7 +3052,7 @@ void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 				pkt_gen_rate[num_flows]=ds_gen_rate;//generate packets every five hundred clockticks
 				on_2_off[num_flows]=ds_on_2_off;//eventually will be something
 				off_2_on[num_flows]=ds_off_2_on;//eventually will be something
-				gen_state[num_flows]=0;//eventually should startin steady state...*/
+				gen_state[num_flows]=0;//eventually should startin steady state...
 				
 				num_flows++;//next one should not overlap
 			}
@@ -3311,7 +3065,7 @@ void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 				pkt_gen_rate[num_flows]=ht_gen_rate;//generate packets every five hundred clockticks
 				on_2_off[num_flows]=ht_on_2_off;//eventually will be something
 				off_2_on[num_flows]=ht_off_2_on;//eventually will be something
-				gen_state[num_flows]=0;//eventually should startin steady state...*/
+				gen_state[num_flows]=0;//eventually should startin steady state...
 				
 				num_flows++;
 			}
@@ -3321,7 +3075,7 @@ void dc_flow_pattern_v2(double high_throughput,double frac_flows)
 			}
 		}
 	}
-}
+}//*/
 
 
 //generate all traffic originating and leaving from a single source
