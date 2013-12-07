@@ -50,7 +50,7 @@
 \maketitle
 
 {\abstract
- We compare the delays experienced by packet flows when transmitted using different scheduling algorithms across a crossbar switch.  The two scheduling algorithms we consider are iterative SLIP \cite{McKeown} and QCSMA \cite{Libin}.  We first compare them under the assumptions that all packets have the same length, and then under the assumption that the half the packets have the maximum allowable length and half have the minimum allowable length.  Our findings suggest that the variation in packet length has a non-negligible effect on throughput vs delay results.  Under varying packet lengths and under TCP flow control, QCSMA derived schedulers seem to do marginally better than SLIP.}
+ We compare the delays experienced by packet flows when transmitted using different scheduling algorithms across a crossbar switch.  The two scheduling algorithms we consider are iterative SLIP \cite{McKeown} and QCSMA \cite{Libin}.  We first compare them under the assumptions that all packets have the same length, and then under the assumption that the half the packets have the maximum allowable length and half have the minimum allowable length.  Our findings suggest that the variation in packet length has a non-negligible effect on throughput vs delay results.  Under varying packet lengths and for long lived TCP connections, QCSMA derived schedulers seem to do only marginally better than SLIP.  In highly loaded core switches with many short-lived TCP connections, we expect to see a large improvement in delay performance of QCSMA over SLIP.}
 
 \section{Introduction}
 Computer networks have made their way to the core of our modern lifestyles.  Almost any information can (and often must) be found on the internet.  Many of the services people use on a daily basis rely on distributed processing of requests housed in enormous datacenters scattered across the country and the world.  All these networks require good routing technologies to be used effectively.
@@ -137,9 +137,31 @@ The performance of this algorithm is expected be quite bad when the packets all 
 
 \section{Simulator}
 
-To compare the delay performance of the different schedulers we built an event driven simulators in C++.  All the graphs were plotted for $32 \times 32$ switches (i.e. 32 inputs and 32 outputs).  Simulation time is discrete with the minimum time step assumed to be the length of one of the bit transmissions of one of the schedulers.   The packet lengths are given in lengths of these time steps.  Because modern crossbars transmit packets in parallel we assume that it takes 5 clock ticks to transmit a 64 byte packet, and 120 clock ticks to transmit a 1500 byte packet.  For all the SLIP simulations we assumed there were $6$ contention slots used to generate the crossbar schedules, but that these calculations were pipelined in such a way as to make the net scheduling negligible compared to the packet transmission time.  Simulation inputs were flow patterns passing through the switch, which were identical for all switches. %The switch operation was simulated for $10^6$ time steps, in order to reach the steady state switch behavior%during a given experiment in order to avoid  make the comparison between different scheduling policies and module types without worrying about inconsistencies in flow statistics.   
+To compare the delay performance of the different schedulers we built an event driven simulator in C++.  Simulation time is discrete with the minimum time step assumed to be the length of one of the bit transmissions of one of the schedulers.   The packet lengths are given in lengths of these time steps.  Because modern crossbars transmit packets in parallel we assume that it takes 5 clock ticks to transmit a 64 byte packet, and 120 clock ticks to transmit a 1500 byte packet.  For all the SLIP simulations we assumed there were $6$ contention slots used to generate the crossbar schedules, but that these calculations were pipelined in such a way as to make the net scheduling negligible compared to the packet transmission time.  Simulation inputs were flow patterns passing through the switch, which were identical for all switches.  We chose to simulate a switch with 32 inputs and 32 outputs as it models a realistically sized switch, which would not take inordinant amounts of time to simulate.%The switch operation was simulated for $10^6$ time steps, in order to reach the steady state switch behavior%during a given experiment in order to avoid  make the comparison between different scheduling policies and module types without worrying about inconsistencies in flow statistics.   
 
- The simulations fell into two categories: an open loop version meant to measure switch throughput, and a closed loop version meant to mimic TCP operation over the switch.  For more details on the simulator design please see appendix \ref{code_design}.%We go into more depth in subsequent sections.
+ The simulations fall into two categories: an open loop version meant to measure switch throughput, and a closed loop version meant to mimic TCP operation over the switch.  
+ \subsection{Modeling Challenges}
+ We encountered several technical challenges that guided our design decisions in order to accurately and efficiently simulate the functioning of a switch.  The simulator in its present form is actually the second simulator that we built to model switch performance under different traffic flows.  Initially the simulations were time driven, which allowed for a simple calculation of state evolution, but it meant we had to make some sacrifices in the accuracy of our model.  In particular the higher the resolution of a time driven simulator, the more iterations it takes to model the same amount of time.  This was a big issue, because the contention slots were only a small fraction of the time it took to send a packet across the switch.  To avoid this issue, we decided to use an event driven simulation, since it allowed us to keep the number of iterations proportional to the number of events (i.e. changes to the state of the system), not the end time of the simulation.  The main difficulty with this design choice is that the calculation of the next event can be quite complex.
+ 
+For an event driven simulation it is important to generate the correct next event based on the current state.  To do this there is usually an event queue which stores the events that have yet to be applied to the system state.  This can be difficult to implement if an event added to the queue could possibly modify the events already in the queue (e.g. arrivals to the switch would affect the next scheduled transmission).  To avoid these issues, we only kept track of the next event.  We assumed that all random events were geometrically distributed as a function of the current state (to take advantage of their memorylessness), and all the deterministic events could be recalculated from the state resulting after the application of the next event.  This made bookkeeping much easier, although perhaps the constant event recalculation slowed down the simulator.
+
+One unforeseen consequence of this approach is that only keeping the next event discarded any concurrent events, which occur with nonzero probability since the time was discretized.  This was remedied by creating a function to merge events, which discarded events that didn't coincide with the next event and created an event with both state updates if the two events coincided.  This change was extremely important as it significantly changed the outputs of the simulator.
+
+\subsection{Organizational Challenges}
+In addition to modeling challenges, there were some organizational challenges to ensuring the simulator would be versatile and easy to use.  
+
+We tried to enforce a modular structure on the different functions used by the simulator.  A key to successfully doing this was the definition of the Event class.  The state of the simulator could only be modified by a well defined Event object.  Event objects then provided a common interface for all functions that simulated a given switch component.  Every existing component modeled by the simulator takes as an input the current state and outputs an Event object.  New components can be easily added by creating a function that outputs an appropriate Event given the simulators current state.  This is an especially apt abstraction, because the Event class contains the merge function, which allows any two Event objects to be combined in such a way as to produce a single valid Event that incorporates the necessary state updates.  Additional functionality can be easily added to the modeled switch by creating the appropriate functions and merging them with the most recently calculcated next event.
+
+In addition to trying to modularize all the components of the simulator and giving functions a common interface, there were some organizational functions that made modifying simulations scenarios and generating new sets of data easier.  One was the creation of a single format for recording all the data: the Data\_Collector class.  Collecting new statistics of different kinds was greatly simplified as the Data\_Collection class has a standardized interface for adding data and does all the difficult storage bookkeeping (i.e. creating new arrays and maintaining them).  The other huge advantage of creating this class is that it is outfitted with a function that aggregates and writes all the collected data to an output file with a standardized format.  This greatly decreased the overhead of adjusting which statistics should be collected and adjusting what is written to the output files.
+
+Finally another extremely useful set of functions were designed around the efficient running of simulations.  There is a function that sets up the initial parameters, a function that resets the state to the appropriate initial conditions, and a function that progress the state through a specified number events.  To run a new simulation it is only necessary to set the appropriate parameters, reset the initial conditions, and then advance the state forward the correct amount of iterations after which the generated data can be written to a file. This greatly facilitates the running of a set of related simulations without needing to manually reset the simulator.
+
+As any giant coding project, there were a lot of bugs that had to be tracked down.  The use of a log which wrote error messages to a file rather than generating print statements was quite useful as it was possible to look into the operation of a loop without having an unmanageable dump to the terminal.
+
+The choice of simulator language was based on a tradeoff between the desired performance and the ease of writing the code.  The main simulation loop was written in C++ as it is very fast at computing a large amount of iterations compared to a more high level language.  The outputs generated by the simulator were then fed into a Matlab script, since the graphics tools are very good and easy to use.  Since the display of the data doesn't require strenuous computation the relative inefficiency of Matlab was not an issue.
+
+ 
+ For more details on the simulator design please see appendix \ref{code_design}.%We go into more depth in subsequent sections.
  
 \section{Open Loop Simulations} \label{open}
 
@@ -236,7 +258,7 @@ One of the most famous (if not most popular) applications in modern datacenters 
 
 This does not accurately model a MapReduce job for several reasons.  The biggest departure from a typical MapReduce job is that our type 1 flows do not have similar synchronization or burstiness properties due to the similar completion times of computations in a real MapReduce job.  Furthermore the large delays imposed by the artificial 10 hop distance for the acks is responsible for another difference in our model.  Still we hope that it suffices to give an impression of how a spread and aggregate application might behave.
 
-The performance for the different schedulers can be seen in figure \ref{vs_spreadagg}.  Interestingly enough, in this scenario the worst performing flow of SLIP does much better than the extreme flows of both the QCSMA schedulers.  Despite this higher variation, both QCSMA schedulers perform better on average than the SLIP scheduler.  The performance difference is not significant in the case of the practical time slotted QCSMA, while the ideal implementation of QCSMA does about 4 times better.  Depending on how close the practical QCSMA implementations can be pushed towards the ideal scheduler, this might be significant.
+The performance for the different schedulers can be seen in figure \ref{vs_spreadagg}.  Interestingly, in this scenario the worst performing flow of SLIP does much better than the extreme flows of both the QCSMA schedulers.  Despite this higher variation, both QCSMA schedulers perform better on average than the SLIP scheduler.  The performance difference is not significant in the case of the practical time slotted QCSMA, while the ideal implementation of QCSMA does about 4 times better.  Depending on how close the practical QCSMA implementations can be pushed towards the ideal scheduler, this might be significant.
 
 \begin{figure}
 \center
@@ -342,8 +364,9 @@ As was to be expected, SLIP once again performed slightly worse, but not signifi
 
 Our open loop experiments (\S\ref{open}) confirmed our intuition that there is something to be gained from using the provably optimal QCSMA scheduling algorithm over iterative SLIP, although this effect has the most pronounced effect under highly loaded open loop control scenarios.  The open loop simulations also underscored the need for bookkeeping the length of the packets, as opposed to simulating a simpler scenario with equal length packets.  This is because the QCSMA algorithm works best when fewer inputs are competing for the available outputs, which is aided by a large variation in packets lengths.
 
-In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest that although there is a differentiation of performance between QCSMA and SLIP, it does not seem to play a large enough role to be significant in practice.  This is partly because the congestion levels (i.e. the loads) are adequately regulated using TCP or a similar congestion control mechanism, and partly because of the low level of intercommunication loads observed in real datacenters.  Perhaps as the prevalence of cloud based distributed application increases, and more efficient flow regulation mechanisms are invented, this may change.
+In contrast, the closed loop simulations (\S \ref{closed}) we considered suggest that although there is a differentiation of performance between QCSMA and SLIP, it does not seem to play a large role in many common practical scenarios.  This is partly because the congestion levels (i.e. the loads) are adequately regulated using TCP or a similar congestion control mechanism, and partly because of the low level of intercommunication loads observed in real datacenters.
 
+While in many scenarios the choice of scheduler seems to have a negligible effect, there is one key loading regime in which there is a significant gain from using QCSMA.  The open loop simulations correspond more closely to core and bottleneck switches, which receive lots of traffic from many different (possibly short-lived) TCP connections.  In this scenario the tcp regulation will not have as large an impact as short lived connections will close before their flow patterns can be significantly altered, lending a more iid open loop flavor to the packets flows.  For switches expected to operate in this loading regime there is much to be gained by choosing QCSMA over SLIP as a scheduling algorithm.
 
 
 %% \begin{itemize}
@@ -530,14 +553,14 @@ Event next_event()
 }
 \end{verbatim}
 
-Notice that there is no effort to save the events that the merge() method discards.  This is because the stochastic events are generated in a memoryless fashion parametrized by the state (i.e. either occur or do not with the same probability at each time step).  The deterministic events are all a function of the state and can be recalculated from the new state that results after the application of an earlier event.  The ACKs are stored in the event$\_$heap, but could in theory also have their own state variable.  Other deterministic events could also be stored in the event$\_$heap depending on the preference of the coder.
+Notice that there is no effort to save the events that the merge() function discards.  This is because the stochastic events are generated in a memoryless fashion parametrized by the state (i.e. either occur or do not with the same probability at each time step).  The deterministic events are all a function of the state and can be recalculated from the new state that results after the application of an earlier event.  The ACKs are stored in the event$\_$heap, but could in theory also have their own state variable.  Other deterministic events could also be stored in the event$\_$heap depending on the preference of the coder.
 
 So to add a component of a simulator it would be necessary to do the following things:
 \begin{itemize}
 \item Create additional state variable\\
 --- This is to facilitate any bookeeping necessary for events generated by this new component
 \item Update the Event class to include updates to the new state.\\
---- This consists of two important parts: a modification of variables in the Event class, and an update to the {\it merge()} method, so two events modifying your new state can successfully be merged into one.
+--- This consists of two important parts: a modification of variables in the Event class, and an update to the {\it merge()} function, so two events modifying your new state can successfully be merged into one.
 \item The creation of a new function to be placed into the next$\_$event() function.\\
 --- This new function would have the form of a next$\_${\it new$\_$component}$\_$event() and would calculate the next event that would occur given the current state.
 \item Ideally there would also be a control variable allowing for an easy way to remove the component if it is not needed in a simulation.
@@ -549,7 +572,7 @@ So to add a component of a simulator it would be necessary to do the following t
 %%\item switch statements 
 %%\end{itemize}
 \subsection{Auxiliary structures}
-In addition to the simulation mechanisms there are a few code structures meant to improve the ease of use.  Data is collected by entering it into an object of the Data$\_$Collector class which provides a convenient dump$\_$to$\_$file() method, which dumps the data into a csv file.  Once all the data is recorded in a file, you can easily graph the data using a Matlab script.\\
+In addition to the simulation mechanisms there are a few code structures meant to improve the ease of use.  Data is collected by entering it into an object of the Data$\_$Collector class which provides a convenient dump$\_$to$\_$file() function, which dumps the data into a csv file.  Once all the data is recorded in a file, you can easily graph the data using a Matlab script.\\
 
 Because of the size of the simulator, there are many sets of variables floating around which may make it difficult to follow what is relevant to what.  In order to combat this, the simulator has collected the different variables parametrizing the different components in structs such as the TCP$\_$State or the Scheduler$\_$Parameters struct, defined at the beginning of the code so that it is easy to follow what values need to be defined in order to make the simulator function.\\
 
@@ -578,7 +601,7 @@ Once the stats have been initialized a new piece of data can be added easily usi
 \end{verbatim}
 Where all you need to specify is the index of the stat to be modified, and which row and column is affected as well as the new piece of data to be recorded.  If the count is specified by the user as the final time of the simulation you often want to multiply the relevant data by the time elapsed since the last time the data was recorded.
 \item {\bf Output}\\
-Printing the data to an output file uses the method:
+Printing the data to an output file uses the function:
 \begin{verbatim}
         dump_to_file(string file_name,int specified_count)
 \end{verbatim}
@@ -605,7 +628,7 @@ The simulation state and control variables are contained in the following struct
 \end{itemize}
 The variables contained in these structs are mostly self explanatory.  If they are not a part of an active state, but rather a parameter the variables are limited to being used to activate `switch' statements or `if' statements at the appropriate places in the code, so understanding their effects should be relatively simple.
 
-\subsubsection{Simulation methods}
+\subsubsection{Simulation Functions}
 Different simulations can now be run by changing the appropriate parameters and resetting the state to zero.  The basic functions for doing this are the following:
 \begin{itemize}
 \item init\_sim\\
@@ -651,7 +674,7 @@ Of course the heart of the scheduler needs to simulate the scheduling algorithms
 A helper function to break large packets into smaller packets when slip is used.
 \end{itemize}
 
-\subsubsection{TCP Methods}
+\subsubsection{TCP Functions}
 Finally TCP has a collection of helper functions to properly update the state when TCP is being used: 
 \begin{itemize}
 \item tcp\_update\\
